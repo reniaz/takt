@@ -1,0 +1,812 @@
+/*
+ * Every colour here is a --takt-* custom property written by useTheme(). Nothing is
+ * hardcoded, which is what makes a theme a set of eleven values rather than a stylesheet.
+ */
+
+* { box-sizing: border-box; }
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--takt-text);
+  background: var(--takt-bg);
+  /* The window is frameless and the app owns every surface; nothing should rubber-band. */
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--takt-scrollbar);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 8px;
+
+  &:hover { background: var(--takt-scrollbar-hover); background-clip: padding-box; }
+}
+
+:focus-visible {
+  outline: 2px solid var(--takt-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- layout ---------- */
+
+:root {
+  --titlebar-height: 32px;
+  // What stays reachable at the top edge while the bar is hidden. Enough to hit without
+  // aiming, small enough not to steal clicks from the app.
+  --titlebar-peek: 6px;
+}
+
+/*
+ * The title bar is a grid row, not a fixed overlay.
+ *
+ * Draht positions its bar `fixed` and pads the body to match, because it is grafted onto
+ * a layout it does not own. Takt owns this one, so collapsing the row does the same job —
+ * content is pushed down rather than covered, and there is no second length to keep in
+ * sync with the first.
+ */
+.app {
+  display: grid;
+  grid-template-rows: var(--titlebar-height) 1fr auto;
+  height: 100%;
+  background: var(--takt-bg);
+  transition: grid-template-rows 150ms ease-out;
+
+  &--dropping { outline: 2px dashed var(--takt-accent); outline-offset: -6px; }
+}
+
+.app__body {
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  min-height: 0;
+}
+
+.app__main {
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.app__version {
+  position: fixed;
+  right: 8px;
+  bottom: 2px;
+  font-size: 10px;
+  color: var(--takt-text-faint);
+  pointer-events: none;
+}
+
+/* ---------- titlebar ---------- */
+
+.titlebar-host {
+  overflow: hidden;
+  height: var(--titlebar-height);
+}
+
+.titlebar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: var(--titlebar-height);
+  padding-left: 12px;
+  /* The same surface as the sidebar below, so the top of the window is one piece. */
+  background: var(--takt-surface);
+  border-bottom: 1px solid var(--takt-border);
+  transition: transform 150ms ease-out;
+  /* The whole strip drags; the buttons opt out below. */
+  -webkit-app-region: drag;
+}
+
+.titlebar__icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--takt-accent);
+}
+
+.titlebar__text {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--takt-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar__buttons {
+  display: flex;
+  height: 100%;
+  margin-left: auto;
+  /* The one part of the bar that must not drag the window. */
+  -webkit-app-region: no-drag;
+}
+
+.titlebar__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  color: var(--takt-text-muted);
+  transition: background 120ms ease-out, color 120ms ease-out;
+
+  svg {
+    width: 10px;
+    height: 10px;
+    fill: none;
+    stroke: currentColor;
+    /* Crisp at this size: thicker smudges, thinner disappears on a fractional scale. */
+    stroke-width: 1;
+  }
+
+  &:hover { color: var(--takt-text); background: var(--takt-surface-hover); }
+  &:active { opacity: 0.7; }
+
+  /*
+   * No ring, no outline. These are window buttons: the hover and press states say
+   * everything, and a focus box drawn around one after a click looks like damage.
+   */
+  &:focus,
+  &:focus-visible { outline: none; box-shadow: none; }
+
+  /* Red on hover, as every window on this platform does. */
+  &--close:hover { color: #fff; background: #c42b1c; }
+}
+
+/*
+ * Maximised: the bar gets out of the way.
+ *
+ * A window filling the screen was maximised to see more of what is in it, and a permanent
+ * strip of chrome across the top is the opposite of that. The bar slides up, leaving a few
+ * pixels to aim at, and comes back when the cursor reaches them — pushing the app down
+ * while it is there rather than covering it, so nothing is ever hidden underneath.
+ */
+.app:has(.titlebar-host--hidden) { grid-template-rows: var(--titlebar-peek) 1fr auto; }
+.app:has(.titlebar-host--revealed) { grid-template-rows: var(--titlebar-height) 1fr auto; }
+
+.titlebar-host--hidden {
+  height: var(--titlebar-peek);
+
+  .titlebar { transform: translateY(-100%); }
+}
+
+.titlebar-host--revealed {
+  height: var(--titlebar-height);
+
+  .titlebar { transform: none; }
+}
+
+/* ---------- sidebar ---------- */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px 10px;
+  overflow-y: auto;
+  background: var(--takt-surface);
+  border-right: 1px solid var(--takt-border);
+}
+
+.sidebar__spacer { flex: 1; }
+
+.sidebar__label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0 8px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--takt-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+.navitem {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 7px 8px;
+  color: var(--takt-text-muted);
+  text-align: left;
+  border-radius: 6px;
+  transition: background 120ms, color 120ms;
+
+  &:hover { color: var(--takt-text); background: var(--takt-surface-hover); }
+
+  &--active {
+    color: var(--takt-text);
+    background: var(--takt-raised);
+  }
+
+  span:first-of-type { flex: 1; }
+}
+
+.navitem__count {
+  font-size: 11px;
+  color: var(--takt-text-faint);
+}
+
+/* ---------- theme picker ---------- */
+
+.themes__grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  padding: 0 6px;
+}
+
+.swatch {
+  display: flex;
+  overflow: hidden;
+  height: 22px;
+  border: 1px solid var(--takt-border);
+  border-radius: 5px;
+  transition: transform 120ms, border-color 120ms;
+
+  span { flex: 1; }
+  /* The accent stripe stays narrow so it reads as an accent, not a third of the theme. */
+  span:last-child { flex: 0 0 7px; }
+
+  &:hover { transform: translateY(-1px); }
+
+  &--active {
+    border-color: var(--takt-accent);
+    box-shadow: 0 0 0 1px var(--takt-accent);
+  }
+}
+
+.themes__brightness {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 6px 0;
+  font-size: 11px;
+  color: var(--takt-text-faint);
+
+  input { flex: 1; }
+}
+
+/* ---------- track list ---------- */
+
+.tracklist { padding: 8px 10px 14px; }
+
+.row {
+  display: grid;
+  grid-template-columns: 30px 34px minmax(0, 1fr) minmax(0, 0.7fr) 48px;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background 100ms;
+
+  &:hover { background: var(--takt-surface-hover); }
+  &--current { background: var(--takt-raised); }
+  &--current .row__title { color: var(--takt-accent); }
+}
+
+.row__index {
+  display: grid;
+  place-items: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--takt-text-faint);
+}
+
+.row__art {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 34px;
+  height: 34px;
+  color: var(--takt-text-faint);
+  background: var(--takt-raised);
+  border-radius: 4px;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+}
+
+.row__main { min-width: 0; }
+
+.row__title,
+.row__sub,
+.row__album {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__sub,
+.row__album { font-size: 11px; color: var(--takt-text-muted); }
+
+.row__time {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--takt-text-muted);
+  text-align: right;
+}
+
+/*
+ * The playing indicator: the app mark's 3-1-2-1 stroke pattern, animated. Same shape as
+ * the icon, so "playing" and "Takt" read as one idea rather than two glyphs.
+ */
+.bars {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  height: 14px;
+
+  i {
+    width: 2px;
+    background: var(--takt-accent);
+    border-radius: 1px;
+    animation: bar 900ms ease-in-out infinite;
+  }
+
+  i:nth-child(1) { height: 12px; animation-delay: 0ms; }
+  i:nth-child(2) { height: 4px; animation-delay: 180ms; }
+  i:nth-child(3) { height: 8px; animation-delay: 360ms; }
+  i:nth-child(4) { height: 4px; animation-delay: 540ms; }
+}
+
+@keyframes bar {
+  0%, 100% { transform: scaleY(0.5); }
+  50% { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bars i { animation: none; }
+}
+
+/* ---------- empty state ---------- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px;
+  text-align: center;
+
+  h2 { margin: 8px 0 0; font-size: 16px; font-weight: 500; }
+  p { margin: 0; color: var(--takt-text-muted); }
+}
+
+.empty__mark { color: var(--takt-accent); opacity: 0.75; }
+
+.empty__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.btn {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  padding: 7px 14px;
+  color: var(--takt-text);
+  background: var(--takt-raised);
+  border: 1px solid var(--takt-border);
+  border-radius: 6px;
+  transition: background 120ms, transform 80ms;
+
+  &:hover { background: var(--takt-raised-hover); }
+  &:active { transform: translateY(1px); }
+
+  &--primary {
+    color: var(--takt-on-accent);
+    background: var(--takt-accent);
+    border-color: transparent;
+
+    &:hover { background: var(--takt-accent-hover); }
+  }
+}
+
+/* ---------- player bar ---------- */
+
+.player {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(320px, 2fr) minmax(180px, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--takt-surface);
+  border-top: 1px solid var(--takt-border);
+}
+
+.player__now {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.player__art {
+  display: grid;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  width: 46px;
+  height: 46px;
+  color: var(--takt-text-faint);
+  background: var(--takt-raised);
+  border-radius: 5px;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+}
+
+.player__meta { min-width: 0; }
+
+.player__title,
+.player__artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player__title { font-weight: 500; }
+.player__artist { font-size: 11px; color: var(--takt-text-muted); }
+.player__error { color: var(--takt-error); }
+
+.player__center {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+
+.player__transport {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.player__right {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.ctl {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: var(--takt-text-muted);
+  border-radius: 50%;
+  transition: color 120ms, background 120ms, transform 80ms;
+
+  &:hover:not(:disabled) { color: var(--takt-text); background: var(--takt-surface-hover); }
+  &:active:not(:disabled) { transform: scale(0.94); }
+  &:disabled { opacity: 0.35; cursor: default; }
+
+  &--on { color: var(--takt-accent); }
+
+  &--primary {
+    width: 38px;
+    height: 38px;
+    color: var(--takt-on-accent);
+    background: var(--takt-accent);
+
+    &:hover:not(:disabled) { color: var(--takt-on-accent); background: var(--takt-accent-hover); }
+  }
+}
+
+.ctl__badge {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--takt-accent);
+}
+
+/* ---------- sliders ---------- */
+
+/*
+ * `--progress` is set inline by each control. Painting the filled portion with a
+ * background gradient rather than a second element keeps the whole slider one node, which
+ * matters on the seek bar where it updates several times a second.
+ */
+@mixin track {
+  height: 4px;
+  background:
+    linear-gradient(var(--takt-accent), var(--takt-accent)) 0 / var(--progress, 0%) 100% no-repeat,
+    var(--takt-raised);
+  border-radius: 2px;
+}
+
+input[type='range'] {
+  height: 14px;
+  margin: 0;
+  appearance: none;
+  background: none;
+  cursor: pointer;
+
+  &::-webkit-slider-runnable-track { @include track; }
+
+  &::-webkit-slider-thumb {
+    width: 11px;
+    height: 11px;
+    margin-top: -3.5px;
+    appearance: none;
+    background: var(--takt-text);
+    border-radius: 50%;
+    /* Hidden until hover: a resting seek bar reads cleaner as a plain progress line. */
+    opacity: 0;
+    transition: opacity 120ms;
+  }
+
+  &:hover::-webkit-slider-thumb,
+  &:focus-visible::-webkit-slider-thumb { opacity: 1; }
+
+  &:disabled { cursor: default; opacity: 0.4; }
+}
+
+.seek {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+.seek__range { flex: 1; min-width: 0; }
+
+.seek__time {
+  width: 46px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--takt-text-muted);
+  text-align: center;
+
+  &--editable {
+    padding: 2px 0;
+    border-radius: 4px;
+
+    &:hover:not(:disabled) { color: var(--takt-text); background: var(--takt-raised); }
+    &:disabled { cursor: default; }
+  }
+
+  &--total { text-align: center; }
+}
+
+.seek__input {
+  padding: 2px 0;
+  color: var(--takt-text);
+  text-align: center;
+  background: var(--takt-raised);
+  border: 1px solid var(--takt-accent);
+  border-radius: 4px;
+  outline: none;
+}
+
+.volume {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.volume__range { width: 84px; }
+
+/* ---------- queue ---------- */
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  background: var(--takt-surface);
+  border-left: 1px solid var(--takt-border);
+}
+
+.queue__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 8px 10px 16px;
+  border-bottom: 1px solid var(--takt-border);
+
+  h2 { margin: 0; font-size: 13px; font-weight: 600; }
+}
+
+.queue__headActions { display: flex; }
+
+.queue__empty {
+  padding: 20px 16px;
+  color: var(--takt-text-faint);
+}
+
+.queue__list {
+  flex: 1;
+  padding: 6px;
+  overflow-y: auto;
+}
+
+.qrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: grab;
+
+  &:hover { background: var(--takt-surface-hover); }
+  &--current { background: var(--takt-raised); }
+  &--current .qrow__title { color: var(--takt-accent); }
+  &:active { cursor: grabbing; }
+}
+
+.qrow__main { min-width: 0; }
+
+.qrow__title,
+.qrow__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qrow__sub { font-size: 11px; color: var(--takt-text-muted); }
+
+.qrow__time {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--takt-text-faint);
+}
+
+.qrow__remove {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--takt-text-faint);
+  border-radius: 50%;
+  opacity: 0;
+
+  .qrow:hover & { opacity: 1; }
+  &:hover { color: var(--takt-text); background: var(--takt-raised-hover); }
+}
+
+/* ---------- equalizer ---------- */
+
+.eq {
+  position: absolute;
+  right: 14px;
+  bottom: 78px;
+  z-index: 10;
+  width: 460px;
+  padding: 14px 16px 12px;
+  background: var(--takt-surface);
+  border: 1px solid var(--takt-border-strong);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px var(--takt-shadow);
+}
+
+.eq__head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.eq__toggle {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  align-items: center;
+  font-weight: 500;
+  cursor: pointer;
+
+  input { accent-color: var(--takt-accent); }
+}
+
+.eq__preset {
+  padding: 5px 8px;
+  font: inherit;
+  color: var(--takt-text);
+  background: var(--takt-raised);
+  border: 1px solid var(--takt-border);
+  border-radius: 5px;
+}
+
+.eq__bands {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  transition: opacity 150ms;
+
+  &--off { opacity: 0.4; }
+}
+
+.eq__band {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+/*
+ * Vertical sliders. `writing-mode: vertical-lr` with `direction: rtl` is what puts the
+ * high end at the top; the older `-webkit-appearance: slider-vertical` is gone in
+ * current Chromium.
+ */
+.eq__slider {
+  width: 14px;
+  height: 108px;
+  direction: rtl;
+  writing-mode: vertical-lr;
+
+  &::-webkit-slider-runnable-track {
+    width: 4px;
+    height: auto;
+    background: var(--takt-raised);
+  }
+
+  &::-webkit-slider-thumb {
+    width: 13px;
+    height: 6px;
+    margin-top: 0;
+    margin-left: -4.5px;
+    background: var(--takt-accent);
+    border-radius: 2px;
+    opacity: 1;
+  }
+}
+
+.eq__db,
+.eq__hz {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--takt-text-faint);
+}
+
+.eq__foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  font-size: 10px;
+  color: var(--takt-text-faint);
+}
+
+/* ---------- update banner ---------- */
+
+.update {
+  position: fixed;
+  bottom: 82px;
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  color: var(--takt-text);
+  background: var(--takt-surface);
+  border: 1px solid var(--takt-border-strong);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px var(--takt-shadow);
+  transform: translateX(-50%);
+}

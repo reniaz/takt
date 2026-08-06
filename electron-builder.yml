@@ -1,0 +1,80 @@
+appId: dev.takt.player
+productName: Takt
+copyright: MIT
+
+# Where installed copies look for updates. Declaring this makes electron-builder write an
+# `app-update.yml` into the packaged resources, which is what electron-updater reads at
+# runtime — so the feed URL is never hardcoded in the app, and no token ships with it.
+#
+# Publishing uploads the installer plus a `latest.yml` manifest to a GitHub Release.
+# `npm run release` does that and needs GH_TOKEN set.
+publish:
+  provider: github
+  owner: reniaz
+  repo: takt
+  releaseType: release
+
+directories:
+  output: release
+  buildResources: electron/assets
+
+# Only what the app actually loads at runtime.
+files:
+  - build/**/*
+  # Source maps are large and only useful when debugging the renderer.
+  - '!build/**/*.map'
+  - electron/dist/**/*
+  - '!electron/dist/**/*.map'
+  - electron/assets/icon-takt-*.png
+  - electron/assets/icon-takt.ico
+  - package.json
+  # electron-builder bundles production `dependencies` by default. None are needed at
+  # runtime: Vite bundles every renderer dependency into `build/`, and tsup bundles the
+  # main process with `noExternal` so only `electron` — supplied by the runtime — is left
+  # out. Shipping node_modules anyway would add thousands of files for nothing.
+  #
+  # This is load-bearing together with `noExternal` in electron/tsup.config.ts. Drop one
+  # without the other and the app throws "Cannot find module" the first time it reads a
+  # file's tags.
+  - '!node_modules/**/*'
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: electron/assets/icon-takt.ico
+  # Unsigned builds trigger SmartScreen on first run. Signing needs a real code-signing
+  # certificate; without one, recipients must click "More info" -> "Run anyway".
+  signAndEditExecutable: true
+
+# Makes "Open with Takt" and double-clicking a track work. main.ts forwards the paths from
+# a second instance to the running one rather than starting a rival copy.
+fileAssociations:
+  - ext: mp3
+    name: MP3 Audio
+    role: Viewer
+  - ext: flac
+    name: FLAC Audio
+    role: Viewer
+  - ext: m4a
+    name: M4A Audio
+    role: Viewer
+  - ext: ogg
+    name: OGG Audio
+    role: Viewer
+  - ext: opus
+    name: Opus Audio
+    role: Viewer
+  - ext: wav
+    name: WAV Audio
+    role: Viewer
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Takt
+  artifactName: Takt-Setup-${version}.${ext}
+  uninstallDisplayName: Takt

@@ -1,0 +1,7 @@
+# LF in the repository, whatever the checkout does locally. Without this the first commit
+# from a Windows machine rewrites every file and every later diff is noise.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.exe binary

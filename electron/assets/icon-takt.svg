@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 16 16">
+  <!--
+    Takt app icon — "Takt" is German for bar/measure/beat.
+
+    One 4/4 bar, drawn as its metric accent pattern: strong, weak, medium, weak.
+
+    The strokes are centred on the midline rather than sitting on a baseline. Bottom-
+    aligned bars of varying height are the standard "now playing" equalizer glyph and
+    read as a status indicator, not as an identity. Vertical symmetry turns the same four
+    strokes into bar lines instead, which is what the name means — and it still suggests
+    the equalizer to anyone who looks twice.
+
+    Round caps and wide gaps are what keep it legible at 16px: the shape is carried by the
+    negative space between the strokes, so it survives being scaled down to a taskbar.
+
+    Amber rather than Draht's Telegram blue, so the two are never confused in alt-tab.
+  -->
+  <defs>
+    <linearGradient id="takt" x1="50%" x2="50%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#E0A33E"/>
+      <stop offset="100%" stop-color="#B87A22"/>
+    </linearGradient>
+  </defs>
+  <g fill="none">
+    <circle cx="8" cy="8" r="8" fill="url(#takt)"/>
+    <g stroke="#F7EFE6" stroke-linecap="round" stroke-width="1.4">
+      <path d="M4.25 3.5v9"/>
+      <path d="M6.75 6.5v3"/>
+      <path d="M9.25 5v6"/>
+      <path d="M11.75 6.5v3"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      No `unsafe-eval`, and no remote origins. Everything the renderer needs is bundled;
+      cover art and audio come from the app's own takt:// scheme.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' takt:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' takt: data: blob:; media-src 'self' takt: blob:; connect-src 'self' takt: ws://localhost:5273; font-src 'self' data:"
+    />
+    <title>Takt</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

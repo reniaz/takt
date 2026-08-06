@@ -1,0 +1,74 @@
+import type { ReactNode } from 'react';
+
+/**
+ * The icon set, as inline SVG.
+ *
+ * Inline rather than an icon font or a sprite sheet: there are a dozen of them, they are
+ * all simple, and `currentColor` means they follow the theme with no extra plumbing. A
+ * font would also have to load before the first paint, which is exactly when the transport
+ * controls need to be visible.
+ *
+ * Each entry draws into a 24x24 box. Strokes are the default; the few solid glyphs opt in
+ * with `fill="currentColor" stroke="none"` on their own path, so a speaker cone can be
+ * filled while the waves beside it stay stroked.
+ */
+
+const solid = { fill: 'currentColor', stroke: 'none' } as const;
+
+const SPEAKER = <path {...solid} d="M11 5 6.5 9H3v6h3.5L11 19z" />;
+
+const ICONS = {
+  play: <path {...solid} d="M8 5.14v13.72a1 1 0 0 0 1.5.87l11.14-6.86a1 1 0 0 0 0-1.74L9.5 4.27A1 1 0 0 0 8 5.14z" />,
+  pause: <path {...solid} d="M7 4h3.5v16H7zM13.5 4H17v16h-3.5z" />,
+  previous: <path d="M7 5v14M19.5 5.9v12.2a1 1 0 0 1-1.53.85l-9.7-6.1a1 1 0 0 1 0-1.7l9.7-6.1A1 1 0 0 1 19.5 5.9z" />,
+  next: <path d="M17 5v14M4.5 5.9v12.2a1 1 0 0 0 1.53.85l9.7-6.1a1 1 0 0 0 0-1.7l-9.7-6.1A1 1 0 0 0 4.5 5.9z" />,
+  shuffle: <path d="M16.5 4.5 20 8l-3.5 3.5M16.5 16.5 20 20l-3.5 3.5M20 8h-3.2a5 5 0 0 0-4.1 2.1l-3.4 4.8A5 5 0 0 1 5.2 17H3M3 8h2.2a5 5 0 0 1 4.1 2.1l.5.7M20 20h-3.2a5 5 0 0 1-4.1-2.1l-.5-.7" />,
+  repeat: <path d="M16.5 2.5 20 6l-3.5 3.5M7.5 21.5 4 18l3.5-3.5M20 6H8a5 5 0 0 0-5 5v1M4 18h12a5 5 0 0 0 5-5v-1" />,
+
+  volume: <>{SPEAKER}<path d="M14.6 9.2a4 4 0 0 1 0 5.6M17.6 6.2a8 8 0 0 1 0 11.6" /></>,
+  volumeLow: <>{SPEAKER}<path d="M14.6 9.2a4 4 0 0 1 0 5.6" /></>,
+  volumeMuted: <>{SPEAKER}<path d="M15 9.5l5 5M20 9.5l-5 5" /></>,
+
+  equalizer: <path d="M5 21v-6M5 11V3M12 21v-9M12 8V3M19 21v-4M19 13V3M2 15h6M9 8h6M16 17h6" />,
+  queue: <path d="M3 6h13M3 12h13M3 18h8M17.5 12.5v6l5-3z" />,
+  folder: <path d="M3 7a2 2 0 0 1 2-2h3.6l2 2.5H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
+  file: <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5" />,
+  music: <path d="M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" />,
+  palette: <path d="M12 21a9 9 0 1 1 0-18c4.97 0 9 3.58 9 8 0 2.21-1.79 4-4 4h-2.2a1.8 1.8 0 0 0-1.3 3.04A1.8 1.8 0 0 1 12 21z" />,
+
+  close: <path d="M5 5l14 14M19 5 5 19" />,
+  minimize: <path d="M5 12h14" />,
+  maximize: <path d="M5.5 5.5h13v13h-13z" />,
+  restore: <path d="M8.5 8.5V5.5h10v10h-3M5.5 8.5h10v10h-10z" />,
+
+  trash: <path d="M4 7h16M9 7V4.5h6V7M6.5 7l.8 12.1a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4L17.5 7" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+} satisfies Record<string, ReactNode>;
+
+export type IconName = keyof typeof ICONS;
+
+type Props = {
+  name: IconName;
+  size?: number;
+  className?: string;
+};
+
+export function Icon({ name, size = 20, className }: Props) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {ICONS[name]}
+    </svg>
+  );
+}
