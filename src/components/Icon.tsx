@@ -43,6 +43,13 @@ const ICONS = {
 
   trash: <path d="M4 7h16M9 7V4.5h6V7M6.5 7l.8 12.1a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4L17.5 7" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  settings: <>
+    <circle cx="12" cy="12" r="3.2" />
+    <path d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3" />
+  </>,
+  reset: <path d="M3.5 5.5v5h5M3.9 10.5a8.5 8.5 0 1 1 .6 5" />,
+  check: <path d="M4 12.5 9.5 18 20 6.5" />,
+  back: <path d="M19 12H5M11 6l-6 6 6 6" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof ICONS;

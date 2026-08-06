@@ -1,8 +1,13 @@
 import { usePlayer } from '../state/player';
 import { Icon } from './Icon';
-import { ThemePicker } from './ThemePicker';
 
-export function Sidebar() {
+export function Sidebar({
+  settingsOpen,
+  onOpenSettings,
+}: {
+  settingsOpen: boolean;
+  onOpenSettings: () => void;
+}) {
   const addTracks = usePlayer((s) => s.addTracks);
   const count = usePlayer((s) => s.queue.length);
 
@@ -10,7 +15,7 @@ export function Sidebar() {
     <nav className="sidebar">
       <div className="sidebar__section">
         <div className="sidebar__label">Library</div>
-        <button type="button" className="navitem navitem--active">
+        <button type="button" className={`navitem ${settingsOpen ? '' : 'navitem--active'}`}>
           <Icon name="music" size={16} />
           <span>All tracks</span>
           <span className="navitem__count">{count || ''}</span>
@@ -39,7 +44,16 @@ export function Sidebar() {
 
       <div className="sidebar__spacer" />
 
-      <ThemePicker />
+      {/* Appearance lives in Settings. The sidebar is for getting to music. */}
+      <button
+        type="button"
+        className={`navitem ${settingsOpen ? 'navitem--active' : ''}`}
+        onClick={onOpenSettings}
+        aria-pressed={settingsOpen}
+      >
+        <Icon name="settings" size={16} />
+        <span>Settings</span>
+      </button>
     </nav>
   );
 }

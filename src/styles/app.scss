@@ -246,46 +246,6 @@ button {
   color: var(--takt-text-faint);
 }
 
-/* ---------- theme picker ---------- */
-
-.themes__grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 5px;
-  padding: 0 6px;
-}
-
-.swatch {
-  display: flex;
-  overflow: hidden;
-  height: 22px;
-  border: 1px solid var(--takt-border);
-  border-radius: 5px;
-  transition: transform 120ms, border-color 120ms;
-
-  span { flex: 1; }
-  /* The accent stripe stays narrow so it reads as an accent, not a third of the theme. */
-  span:last-child { flex: 0 0 7px; }
-
-  &:hover { transform: translateY(-1px); }
-
-  &--active {
-    border-color: var(--takt-accent);
-    box-shadow: 0 0 0 1px var(--takt-accent);
-  }
-}
-
-.themes__brightness {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 12px 6px 0;
-  font-size: 11px;
-  color: var(--takt-text-faint);
-
-  input { flex: 1; }
-}
-
 /* ---------- track list ---------- */
 
 .tracklist { padding: 8px 10px 14px; }
@@ -698,8 +658,8 @@ input[type='range'] {
   right: 14px;
   bottom: 78px;
   z-index: 10;
-  width: 460px;
-  padding: 14px 16px 12px;
+  width: 520px;
+  padding: 12px 16px 10px;
   background: var(--takt-surface);
   border: 1px solid var(--takt-border-strong);
   border-radius: 10px;
@@ -708,9 +668,9 @@ input[type='range'] {
 
 .eq__head {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .eq__toggle {
@@ -733,63 +693,384 @@ input[type='range'] {
   border-radius: 5px;
 }
 
-.eq__bands {
-  display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 4px;
-  transition: opacity 150ms;
-
-  &--off { opacity: 0.4; }
-}
-
-.eq__band {
+.eq__foot {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: center;
-}
-
-/*
- * Vertical sliders. `writing-mode: vertical-lr` with `direction: rtl` is what puts the
- * high end at the top; the older `-webkit-appearance: slider-vertical` is gone in
- * current Chromium.
- */
-.eq__slider {
-  width: 14px;
-  height: 108px;
-  direction: rtl;
-  writing-mode: vertical-lr;
-
-  &::-webkit-slider-runnable-track {
-    width: 4px;
-    height: auto;
-    background: var(--takt-raised);
-  }
-
-  &::-webkit-slider-thumb {
-    width: 13px;
-    height: 6px;
-    margin-top: 0;
-    margin-left: -4.5px;
-    background: var(--takt-accent);
-    border-radius: 2px;
-    opacity: 1;
-  }
-}
-
-.eq__db,
-.eq__hz {
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 10px;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   color: var(--takt-text-faint);
 }
 
-.eq__foot {
+.eq__hint { text-align: right; }
+
+/* ---------- the curve editor ---------- */
+
+.eqcurve {
+  position: relative;
+  user-select: none;
+  background: var(--takt-bg);
+  border: 1px solid var(--takt-border);
+  border-radius: 8px;
+  /* The whole surface is the control, so it should look grabbable everywhere. */
+  cursor: crosshair;
+  transition: opacity 150ms;
+
+  svg { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  &--disabled { cursor: default; opacity: 0.4; }
+}
+
+.eqcurve__grid {
+  stroke: var(--takt-border);
+  stroke-width: 1;
+}
+
+.eqcurve__zero {
+  stroke: var(--takt-border-strong);
+  stroke-width: 1.5;
+}
+
+.eqcurve__fill {
+  fill: var(--takt-accent-soft);
+  stroke: none;
+}
+
+.eqcurve__line {
+  fill: none;
+  stroke: var(--takt-accent);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  /* The SVG is stretched with preserveAspectRatio="none", which would scale the stroke
+     with it and make the line thicker at one aspect than another. */
+  vector-effect: non-scaling-stroke;
+}
+
+.eqcurve__handle {
+  circle { fill: var(--takt-accent); stroke: var(--takt-bg); stroke-width: 2; transition: r 100ms; }
+
+  &.is-active circle { fill: var(--takt-accent-hover); }
+}
+
+.eqcurve__stem {
+  stroke: var(--takt-accent);
+  stroke-width: 1.5;
+  opacity: 0.45;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Invisible, focusable, and larger than the dot so keyboard users get a real target. */
+.eqcurve__hit {
+  fill: transparent;
+  stroke: none;
+
+  &:focus-visible { stroke: var(--takt-text); stroke-width: 2; }
+}
+
+.eqcurve__axis {
+  position: relative;
+  height: 26px;
+  margin-top: 2px;
+
+  span {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 9px;
+    color: var(--takt-text-faint);
+    white-space: nowrap;
+    transform: translateX(-50%);
+  }
+
+  b {
+    font-size: 10px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--takt-text-muted);
+  }
+}
+
+/* ---------- settings ---------- */
+
+.settings {
   display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.settings__head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--takt-border);
+
+  h1 { margin: 0; font-size: 16px; font-weight: 500; }
+}
+
+/*
+ * A flex column, so the version footer's `margin-top: auto` puts it at the bottom of a
+ * short page and at the end of the content on a long one.
+ */
+.settings__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 20px 24px 0;
+  overflow-y: auto;
+}
+
+.settings__section {
+  max-width: 720px;
+  margin-bottom: 34px;
+
+  h2 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+  h3 { margin: 20px 0 8px; font-size: 11px; font-weight: 600; color: var(--takt-text-muted);
+       text-transform: uppercase; letter-spacing: 0.07em; }
+}
+
+.settings__note {
+  max-width: 62ch;
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--takt-text-muted);
+
+  code {
+    padding: 1px 4px;
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    font-size: 11px;
+    background: var(--takt-raised);
+    border-radius: 3px;
+  }
+}
+
+.settings__switch {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin-bottom: 12px;
+  cursor: pointer;
+
+  input { width: 15px; height: 15px; accent-color: var(--takt-accent); }
+  &--inline { margin-bottom: 0; font-size: 12px; color: var(--takt-text-muted); }
+}
+
+.settingrow {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-top: 12px;
-  font-size: 10px;
+  padding: 14px 0;
+  border-top: 1px solid var(--takt-border);
+}
+
+.settingrow__text { flex: 1; min-width: 0; }
+
+.settingrow__label {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-weight: 500;
+}
+
+.settingrow__value {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--takt-accent);
+}
+
+.settingrow__hint {
+  max-width: 54ch;
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.5;
   color: var(--takt-text-faint);
+}
+
+.settingrow__control {
+  flex: none;
+  width: 220px;
+
+  > input[type='range'] { width: 100%; }
+}
+
+.preamp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  input[type='range'] { width: 100%; }
+}
+
+/* ---------- theme cards ---------- */
+
+.themecards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.themecard {
+  padding: 0;
+  overflow: hidden;
+  text-align: left;
+  background: var(--takt-raised);
+  border: 1px solid var(--takt-border);
+  border-radius: 8px;
+  transition: border-color 120ms, transform 100ms;
+
+  &:hover { transform: translateY(-1px); }
+
+  &--active {
+    border-color: var(--takt-accent);
+    box-shadow: 0 0 0 1px var(--takt-accent);
+  }
+}
+
+.themecard__preview {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  height: 48px;
+  padding: 8px;
+
+  span { width: 12px; height: 60%; border-radius: 2px; }
+}
+
+.themecard__accent { height: 90% !important; }
+
+.themecard__label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 9px;
+  font-size: 11px;
+  border-top: 1px solid var(--takt-border);
+
+  svg { color: var(--takt-accent); }
+}
+
+/* ---------- eq band number fields ---------- */
+
+.bandfields {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 6px;
+  margin-top: 12px;
+  transition: opacity 150ms;
+
+  &--off { opacity: 0.4; }
+}
+
+.bandfield {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+
+  span { font-size: 9px; color: var(--takt-text-faint); }
+
+  input {
+    width: 100%;
+    padding: 4px 2px;
+    font: inherit;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--takt-text);
+    text-align: center;
+    background: var(--takt-raised);
+    border: 1px solid var(--takt-border);
+    border-radius: 4px;
+
+    &:focus { border-color: var(--takt-accent); outline: none; }
+  }
+}
+
+/* ---------- presets ---------- */
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  padding: 5px 11px;
+  font-size: 12px;
+  color: var(--takt-text-muted);
+  background: var(--takt-raised);
+  border: 1px solid var(--takt-border);
+  border-radius: 20px;
+  transition: color 120ms, background 120ms, border-color 120ms;
+
+  &:hover { color: var(--takt-text); background: var(--takt-raised-hover); }
+
+  &--active {
+    color: var(--takt-on-accent);
+    background: var(--takt-accent);
+    border-color: transparent;
+
+    &:hover { color: var(--takt-on-accent); background: var(--takt-accent-hover); }
+  }
+
+  &--saved { padding: 0 4px 0 11px; }
+  &--saved > button:first-child { padding: 5px 0; color: inherit; }
+}
+
+.chip__remove {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: inherit;
+  border-radius: 50%;
+  opacity: 0.6;
+
+  &:hover { opacity: 1; background: var(--takt-shadow-soft); }
+}
+
+.savepreset {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+
+  input {
+    flex: 1;
+    max-width: 260px;
+    padding: 7px 10px;
+    font: inherit;
+    color: var(--takt-text);
+    background: var(--takt-raised);
+    border: 1px solid var(--takt-border);
+    border-radius: 6px;
+
+    &:focus { border-color: var(--takt-accent); outline: none; }
+  }
+
+  .btn:disabled { cursor: default; opacity: 0.45; }
+}
+
+/* ---------- version footer ---------- */
+
+/*
+ * `margin-top: auto` inside the settings flex column: at the foot of the panel on a short
+ * page, at the end of the content on a long one.
+ */
+.version {
+  margin-top: auto;
+  padding: 30px 0 22px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--takt-text-faint);
+  text-align: center;
 }
 
 /* ---------- update banner ---------- */

@@ -2,8 +2,9 @@ import { create } from 'zustand';
 
 import { Engine } from '../audio/engine';
 import { autoPreamp, FLAT } from '../audio/eq';
-import { DEFAULT_THEME_ID } from '../themes/themes';
+import { load, save } from './persist';
 
+import type { Preset } from '../audio/eq';
 import type { TrackInfo } from '../../electron/preload';
 
 export type Repeat = 'off' | 'queue' | 'track';
@@ -51,6 +52,10 @@ type State = {
 
   eqEnabled: boolean;
   eqGains: number[];
+  /** Manual preamp in dB. Ignored while `eqPreampAuto` is on. */
+  eqPreamp: number;
+  eqPreampAuto: boolean;
+  customPresets: Preset[];
 
   themeId: string;
   brightness: number;
@@ -74,9 +79,20 @@ type Actions = {
   clearQueue: () => void;
   setEqEnabled: (on: boolean) => void;
   setEqGains: (gains: readonly number[]) => void;
+  setEqPreamp: (db: number) => void;
+  setEqPreampAuto: (auto: boolean) => void;
+  saveEqPreset: (label: string) => void;
+  deleteEqPreset: (id: string) => void;
   setTheme: (id: string) => void;
   setBrightness: (value: number) => void;
 };
+
+const saved = load();
+
+/** The preamp actually in effect, given the auto/manual choice. */
+function effectivePreamp(state: Pick<State, 'eqPreampAuto' | 'eqPreamp' | 'eqGains'>) {
+  return state.eqPreampAuto ? autoPreamp(state.eqGains) : state.eqPreamp;
+}
 
 export const usePlayer = create<State & Actions>((set, get) => ({
   tracks: new Map(),
@@ -87,17 +103,20 @@ export const usePlayer = create<State & Actions>((set, get) => ({
   isPlaying: false,
   position: 0,
   duration: 0,
-  volume: 0.7,
-  muted: false,
-  shuffle: false,
-  repeat: 'off',
+  volume: saved.volume,
+  muted: saved.muted,
+  shuffle: saved.shuffle,
+  repeat: saved.repeat,
   error: undefined,
 
-  eqEnabled: false,
-  eqGains: [...FLAT],
+  eqEnabled: saved.eqEnabled,
+  eqGains: saved.eqGains,
+  eqPreamp: saved.eqPreamp,
+  eqPreampAuto: saved.eqPreampAuto,
+  customPresets: saved.customPresets,
 
-  themeId: DEFAULT_THEME_ID,
-  brightness: 0,
+  themeId: saved.themeId,
+  brightness: saved.brightness,
 
   addTracks: (incoming, playFirst = false) => {
     if (!incoming.length) return;
@@ -255,19 +274,50 @@ export const usePlayer = create<State & Actions>((set, get) => ({
   },
 
   setEqEnabled: (on) => {
-    const gains = on ? get().eqGains : [...FLAT];
-    engine.setEqGains(gains);
-    engine.setPreamp(on ? autoPreamp(gains) : 0);
     set({ eqEnabled: on });
+    // Bypassed by flattening the filters rather than by rebuilding the graph. Disconnecting
+    // and reconnecting nodes mid-playback is audible; a flat biquad is not.
+    engine.setEqGains(on ? get().eqGains : FLAT);
+    engine.setPreamp(on ? effectivePreamp(get()) : 0);
   },
 
   setEqGains: (gains) => {
     const next = [...gains];
     set({ eqGains: next });
-    if (get().eqEnabled) {
-      engine.setEqGains(next);
-      engine.setPreamp(autoPreamp(next));
-    }
+    if (!get().eqEnabled) return;
+    engine.setEqGains(next);
+    engine.setPreamp(effectivePreamp(get()));
+  },
+
+  setEqPreamp: (db) => {
+    const eqPreamp = Math.max(-24, Math.min(12, db));
+    set({ eqPreamp });
+    if (get().eqEnabled) engine.setPreamp(effectivePreamp(get()));
+  },
+
+  setEqPreampAuto: (eqPreampAuto) => {
+    set({ eqPreampAuto });
+    if (get().eqEnabled) engine.setPreamp(effectivePreamp(get()));
+  },
+
+  saveEqPreset: (label) => {
+    const name = label.trim();
+    if (!name) return;
+
+    const gains = [...get().eqGains];
+    const existing = get().customPresets.find((p) => p.label.toLowerCase() === name.toLowerCase());
+
+    // Saving under a name already in use overwrites it, rather than leaving two presets
+    // with the same label and no way to tell them apart.
+    set({
+      customPresets: existing
+        ? get().customPresets.map((p) => (p.id === existing.id ? { ...p, gains } : p))
+        : [...get().customPresets, { id: `custom-${Date.now().toString(36)}`, label: name, gains }],
+    });
+  },
+
+  deleteEqPreset: (id) => {
+    set({ customPresets: get().customPresets.filter((p) => p.id !== id) });
   },
 
   setTheme: (themeId) => set({ themeId }),
@@ -281,7 +331,37 @@ engine.on('playing', (isPlaying) => usePlayer.setState({ isPlaying }));
 engine.on('error', (error) => usePlayer.setState({ error, isPlaying: false }));
 engine.on('ended', () => usePlayer.getState().next());
 
-engine.setVolume(usePlayer.getState().volume);
+/* Restore what was saved, so the first sound matches the last session. */
+{
+  const initial = usePlayer.getState();
+  engine.setVolume(initial.muted ? 0 : initial.volume);
+  engine.setEqGains(initial.eqEnabled ? initial.eqGains : FLAT);
+  engine.setPreamp(initial.eqEnabled ? effectivePreamp(initial) : 0);
+}
+
+/*
+ * Store -> disk.
+ *
+ * Subscribing to the whole store and writing a fixed slice, rather than saving inside each
+ * action: there are a dozen actions that touch a persisted value and any new one would
+ * have to remember to call save(). The write is debounced, so the burst a slider produces
+ * still lands as one.
+ */
+usePlayer.subscribe((state) => {
+  save({
+    themeId: state.themeId,
+    brightness: state.brightness,
+    volume: state.volume,
+    muted: state.muted,
+    repeat: state.repeat,
+    shuffle: state.shuffle,
+    eqEnabled: state.eqEnabled,
+    eqGains: state.eqGains,
+    eqPreamp: state.eqPreamp,
+    eqPreampAuto: state.eqPreampAuto,
+    customPresets: state.customPresets,
+  });
+});
 
 export function currentTrack() {
   const { queue, index, tracks } = usePlayer.getState();

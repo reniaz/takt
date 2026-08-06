@@ -11,8 +11,23 @@ A music player for Windows.
 **Takt** is German for *bar*, *beat*, *measure*. The icon is one 4/4 bar drawn as its metric
 accent pattern — strong, weak, medium, weak.
 
-Local files, indexed and searchable. Ten-band equalizer, nine themes, gapless playback, and
-a queue that survives a restart. It updates itself.
+Local files, a ten-band equalizer you shape by drawing on it, nine themes, and a queue you
+can reorder by dragging. It updates itself.
+
+## Equalizer
+
+The curve is the control. Press anywhere to set the nearest band, and drag sideways to keep
+setting whichever band is under the pointer — so a whole curve is one stroke instead of ten
+separate slider grabs. Double-click a band to reset it, hold `Shift` for fine steps, or type
+exact values in Settings.
+
+The line behind the handles is the **real combined response**, computed from the actual
+filters rather than drawn through the handle positions. Two adjacent bands at +6 dB really
+do reach past +7, and the curve says so instead of showing a smooth lie.
+
+A preamp backs the signal off by the largest boost, because most masters have no headroom
+left and the clipping otherwise sounds like the equalizer is broken. Presets can be saved
+by name in Settings.
 
 ## Install
 
@@ -81,16 +96,20 @@ npm install
 npm run dev
 ```
 
-`npm run dev` starts Vite on port 5273 and serves the UI in a plain browser with a stubbed
-bridge, which is the fast loop for layout and themes. Nothing plays there — audio needs the
-`takt://` scheme, so run the real shell for that:
+`npm run dev` builds the shell, starts Vite, waits for it, and opens the app against it —
+so the renderer hot-reloads while you edit. Changing anything under `electron/` needs a
+restart, since the main process is bundled once at the start.
 
-```bash
-npm run build && npm start
-```
+There is also a browser-only loop. `npm run dev:web` serves the UI at
+<http://localhost:5273> with a stubbed bridge and fake tracks, which is faster for working
+on layout and themes. Nothing plays there — audio needs the `takt://` scheme, which only
+exists inside Electron.
 
 | Script | |
 |---|---|
+| `npm run dev` | Vite + Electron together, with hot reload |
+| `npm run dev:web` | Vite only, in a browser, with a stubbed bridge |
+| `npm start` | Run the built app against `build/` (needs `npm run build`) |
 | `npm run check` | Typecheck both projects |
 | `npm test` | Unit tests |
 | `npm run verify` | Both of the above |

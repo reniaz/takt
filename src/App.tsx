@@ -4,6 +4,7 @@ import { Equalizer } from './components/Equalizer';
 import { Icon } from './components/Icon';
 import { PlayerBar } from './components/PlayerBar';
 import { Queue } from './components/Queue';
+import { SettingsPage } from './components/settings/SettingsPage';
 import { Sidebar } from './components/Sidebar';
 import { TitleBar } from './components/TitleBar';
 import { TrackList } from './components/TrackList';
@@ -15,6 +16,7 @@ import { useTheme } from './themes/useTheme';
 export function App() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [eqOpen, setEqOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [version, setVersion] = useState('');
   const [dropping, setDropping] = useState(false);
 
@@ -64,16 +66,24 @@ export function App() {
       <TitleBar />
 
       <div className="app__body">
-        <Sidebar />
+        <Sidebar
+          settingsOpen={settingsOpen}
+          onOpenSettings={() => setSettingsOpen((open) => !open)}
+        />
 
         <main className="app__main">
-          <TrackList />
+          {settingsOpen ? <SettingsPage onClose={() => setSettingsOpen(false)} /> : <TrackList />}
         </main>
 
         {queueOpen && <Queue onClose={() => setQueueOpen(false)} />}
       </div>
 
-      {eqOpen && <Equalizer onClose={() => setEqOpen(false)} />}
+      {eqOpen && (
+        <Equalizer
+          onClose={() => setEqOpen(false)}
+          onOpenSettings={() => { setSettingsOpen(true); setEqOpen(false); }}
+        />
+      )}
 
       <PlayerBar
         queueOpen={queueOpen}

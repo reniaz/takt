@@ -68,7 +68,9 @@ export const PRESETS: readonly Preset[] = [
  * beyond this, so it is a floor rather than a guarantee.
  */
 export function autoPreamp(gains: readonly number[]) {
-  return -Math.max(0, ...gains);
+  // `|| 0` normalises the negative zero that negating 0 produces. It compares equal to 0
+  // but formats as "-0" in a number field, which reads as a broken control.
+  return -Math.max(0, ...gains) || 0;
 }
 
 /** dB to a linear gain multiplier. */
