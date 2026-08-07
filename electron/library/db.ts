@@ -120,6 +120,16 @@ const MIGRATIONS: string[] = [
 
   create index playlist_tracks_order on playlist_tracks(playlistId, position);
   `,
+
+  `
+  create table waveforms (
+    trackId text primary key references tracks(id) on delete cascade,
+    -- Stored alongside the peaks rather than only on the track, so a lookup can tell in
+    -- one query whether the cache is still describing the same file.
+    mtime   integer not null,
+    peaks   blob not null
+  );
+  `,
 ];
 
 export function open() {
@@ -299,6 +309,39 @@ export function removeFromPlaylist(playlistId: string, trackIds: readonly string
   const statement = conn().prepare('delete from playlist_tracks where playlistId = ? and trackId = ?');
   for (const trackId of trackIds) statement.run(playlistId, trackId);
   conn().prepare('update playlists set updatedAt = ? where id = ?').run(Date.now(), playlistId);
+}
+
+/* ---------- waveforms ---------- */
+
+/**
+ * Cached peaks for the seek bar.
+ *
+ * Keyed by mtime as well as id, so a retagged or replaced file is redrawn rather than
+ * shown with the shape of whatever used to be at that path. Decoding a track takes long
+ * enough that this is the difference between the waveform appearing instantly on a
+ * revisit and appearing a second late every single time.
+ */
+export function getWaveform(trackId: string) {
+  const row = conn()
+    .prepare('select w.peaks as peaks from waveforms w join tracks t on t.id = w.trackId '
+      + 'where w.trackId = ? and w.mtime = t.mtime')
+    .get(trackId) as { peaks?: Uint8Array } | undefined;
+
+  return row?.peaks;
+}
+
+export function putWaveform(trackId: string, peaks: Uint8Array) {
+  const handle = conn();
+  const row = handle.prepare('select mtime from tracks where id = ?').get(trackId) as
+    { mtime: number } | undefined;
+
+  // No track means nothing to key the cache against; the peaks would never match again.
+  if (!row) return;
+
+  handle
+    .prepare('insert into waveforms (trackId, mtime, peaks) values (?, ?, ?) '
+      + 'on conflict(trackId) do update set mtime = excluded.mtime, peaks = excluded.peaks')
+    .run(trackId, row.mtime, peaks);
 }
 
 /** Rewrites the whole order. Simpler than shuffling positions, and the lists are small. */

@@ -82,6 +82,8 @@ export function installDevBridge() {
     },
     notePlayed: () => {},
     reveal: async () => {},
+    getWaveform: async () => undefined,
+    putWaveform: () => {},
     pathForFile: () => '',
     onScanProgress: noop,
     onOpenFiles: noop,

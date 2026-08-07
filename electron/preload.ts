@@ -67,6 +67,9 @@ const api = {
   removeTracks: (ids: string[]): Promise<TrackInfo[]> => ipcRenderer.invoke('takt:remove-tracks', ids),
   notePlayed: (id: string) => ipcRenderer.send('takt:note-played', id),
   reveal: (id: string): Promise<void> => ipcRenderer.invoke('takt:reveal', id),
+  /** Cached seek-bar peaks, or undefined if none are stored for this file as it is now. */
+  getWaveform: (id: string): Promise<Uint8Array | undefined> => ipcRenderer.invoke('takt:waveform-get', id),
+  putWaveform: (id: string, peaks: Uint8Array) => ipcRenderer.send('takt:waveform-put', id, peaks),
   /** `undefined` when a scan finishes, so the progress bar knows to disappear. */
   onScanProgress: (listener: (progress: { done: number; total: number } | undefined) => void) =>
     on('takt:scan-progress', listener),

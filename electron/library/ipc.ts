@@ -240,6 +240,13 @@ export function initLibrary(getWindow: () => BrowserWindow | undefined) {
     return true;
   });
 
+  /* ---------- waveforms ---------- */
+
+  ipcMain.handle('takt:waveform-get', (_event, id: string) => db.getWaveform(id) ?? undefined);
+  ipcMain.on('takt:waveform-put', (_event, id: string, peaks: Uint8Array) => {
+    db.putWaveform(id, peaks);
+  });
+
   /* By id, so the renderer never handles a filesystem path. */
   ipcMain.handle('takt:reveal', (_event, id: string) => {
     const path = db.trackPath(id);

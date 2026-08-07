@@ -1120,7 +1120,46 @@ input[type='range'] {
   width: 100%;
 }
 
-.seek__range { flex: 1; min-width: 0; }
+.seek__track {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+
+.seek__range { width: 100%; }
+
+/*
+ * With a waveform behind it the input's own filled track would draw a second progress
+ * indicator over the first, so it goes transparent and only the thumb remains.
+ */
+.seek__track--wave {
+  height: 32px;
+
+  .seek__range {
+    position: relative;
+    z-index: 1;
+    height: 32px;
+
+    &::-webkit-slider-runnable-track { background: none; }
+  }
+}
+
+.wave {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  // Every bar is a stroked line, and the SVG is stretched to fit; without this the strokes
+  // would scale with it and thicken on a wide window.
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.wave__rest { stroke: var(--takt-raised-hover); }
+.wave__played { stroke: var(--takt-accent); }
 
 .seek__time {
   width: 46px;

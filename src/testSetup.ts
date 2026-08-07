@@ -38,6 +38,8 @@ const stub = {
   removeTracks: async () => [],
   notePlayed: vi.fn(),
   reveal: async () => {},
+  getWaveform: async () => undefined,
+  putWaveform: vi.fn(),
   pathForFile: () => '',
   onScanProgress: noop,
   onOpenFiles: noop,

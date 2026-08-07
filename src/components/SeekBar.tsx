@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { formatTime, parseTimeInput } from '../audio/time';
+import { useWaveform } from '../audio/useWaveform';
 import { usePlayer } from '../state/player';
+import { Waveform } from './Waveform';
 
 /**
  * Position readout, scrub bar, and duration.
@@ -15,6 +17,9 @@ export function SeekBar() {
   const duration = usePlayer((s) => s.duration);
   const seek = usePlayer((s) => s.seek);
   const hasTrack = usePlayer((s) => s.index >= 0);
+  const trackId = usePlayer((s) => s.queue[s.index]);
+
+  const peaks = useWaveform(trackId);
 
   const [dragging, setDragging] = useState<number | undefined>(undefined);
   const [editing, setEditing] = useState(false);
@@ -43,26 +48,35 @@ export function SeekBar() {
         </button>
       )}
 
-      <input
-        className="seek__range"
-        type="range"
-        min={0}
-        max={max || 1}
-        step={0.1}
-        value={Math.min(shown, max || 1)}
-        disabled={!hasTrack || !max}
-        aria-label="Seek"
-        onChange={(e) => setDragging(Number(e.target.value))}
-        onPointerUp={() => {
-          if (dragging !== undefined) seek(dragging);
-          setDragging(undefined);
-        }}
-        onKeyUp={() => {
-          if (dragging !== undefined) seek(dragging);
-          setDragging(undefined);
-        }}
-        style={{ '--progress': `${max ? (Math.min(shown, max) / max) * 100 : 0}%` } as React.CSSProperties}
-      />
+      {/*
+        The waveform sits behind the range input rather than replacing it. The input stays
+        the control — keyboard, screen readers and drag all keep working — and the drawing
+        is decoration layered under it.
+      */}
+      <div className={`seek__track ${peaks ? 'seek__track--wave' : ''}`}>
+        {peaks && <Waveform peaks={peaks} progress={max ? Math.min(shown, max) / max : 0} />}
+
+        <input
+          className="seek__range"
+          type="range"
+          min={0}
+          max={max || 1}
+          step={0.1}
+          value={Math.min(shown, max || 1)}
+          disabled={!hasTrack || !max}
+          aria-label="Seek"
+          onChange={(e) => setDragging(Number(e.target.value))}
+          onPointerUp={() => {
+            if (dragging !== undefined) seek(dragging);
+            setDragging(undefined);
+          }}
+          onKeyUp={() => {
+            if (dragging !== undefined) seek(dragging);
+            setDragging(undefined);
+          }}
+          style={{ '--progress': `${max ? (Math.min(shown, max) / max) * 100 : 0}%` } as React.CSSProperties}
+        />
+      </div>
 
       <span className="seek__time seek__time--total">{formatTime(max)}</span>
     </div>
