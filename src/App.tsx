@@ -103,12 +103,7 @@ export function App() {
         {queueOpen && <Queue onClose={() => setQueueOpen(false)} />}
       </div>
 
-      {eqOpen && (
-        <Equalizer
-          onClose={() => setEqOpen(false)}
-          onOpenSettings={() => { setView({ kind: 'settings' }); setEqOpen(false); }}
-        />
-      )}
+      {eqOpen && <Equalizer onClose={() => setEqOpen(false)} />}
 
       <PlayerBar
         queueOpen={queueOpen}

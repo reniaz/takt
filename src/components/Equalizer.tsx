@@ -10,7 +10,7 @@ import { Icon } from './Icon';
  * dragging — and nothing that needs reading. Preamp control, saving presets and the wider
  * canvas live in Settings.
  */
-export function Equalizer({ onClose, onOpenSettings }: { onClose: () => void; onOpenSettings: () => void }) {
+export function Equalizer({ onClose }: { onClose: () => void }) {
   const enabled = usePlayer((s) => s.eqEnabled);
   const gains = usePlayer((s) => s.eqGains);
   const custom = usePlayer((s) => s.customPresets);
@@ -50,9 +50,6 @@ export function Equalizer({ onClose, onOpenSettings }: { onClose: () => void; on
 
         <button type="button" className="ctl" onClick={() => setGains(FLAT)} title="Reset to flat" aria-label="Reset equalizer">
           <Icon name="reset" size={15} />
-        </button>
-        <button type="button" className="ctl" onClick={onOpenSettings} title="More equalizer settings" aria-label="Open equalizer settings">
-          <Icon name="settings" size={15} />
         </button>
         <button type="button" className="ctl" onClick={onClose} title="Close" aria-label="Close equalizer">
           <Icon name="close" size={15} />

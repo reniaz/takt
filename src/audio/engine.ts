@@ -45,8 +45,26 @@ const PRELOAD_LEAD = 15;
  */
 const GAPLESS_LEAD = 0.12;
 
-/** Points in a crossfade envelope. Enough that the curve is smooth, few enough to be free. */
-const CURVE_STEPS = 64;
+/** Envelope resolution. Web Audio interpolates between points, so this is plenty smooth. */
+const CURVE_POINTS_PER_SECOND = 60;
+const MIN_CURVE_POINTS = 64;
+
+/**
+ * How long to wait for the incoming deck to have audio ready before fading anyway.
+ *
+ * Starting the ramp against an element that is still buffering spends the first part of
+ * the fade on silence, and the track then appears partway through at an audible level —
+ * which is exactly what a crossfade is supposed to avoid, and reads as a hard cut.
+ */
+const READY_TIMEOUT_MS = 400;
+
+/**
+ * The most of a track a crossfade may occupy.
+ *
+ * Beyond this the fade is longer than the music it happens over, and the track is gone
+ * before it has been heard.
+ */
+const MAX_FADE_FRACTION = 0.4;
 
 export type EngineEvents = {
   time: (position: number, duration: number) => void;
@@ -291,27 +309,78 @@ export class Engine {
 
     const remaining = duration - element.currentTime;
 
-    if (!this.preloaded && remaining <= Math.max(PRELOAD_LEAD, this.crossfadeSeconds + 2)) {
+    // Well clear of the fade itself: a 12-second crossfade that only began buffering two
+    // seconds beforehand would still be loading when the ramp was due to start.
+    if (!this.preloaded && remaining <= Math.max(PRELOAD_LEAD, this.crossfadeSeconds + 10)) {
       this.preloaded = true;
       this.idle.element.src = this.next.src;
       this.idle.element.load();
     }
 
-    const lead = this.crossfadeSeconds > 0 ? this.crossfadeSeconds : GAPLESS_LEAD;
-    if (remaining <= lead) this.handover();
+    const fade = this.fadeFor(duration);
+    const lead = fade > 0 ? fade : GAPLESS_LEAD;
+    if (remaining <= lead) this.handover(fade);
   }
 
-  /** Equal power, so the total stays constant instead of dipping in the middle. */
-  private fadeCurve(rising: boolean) {
-    const curve = new Float32Array(CURVE_STEPS);
-    for (let i = 0; i < CURVE_STEPS; i += 1) {
-      const t = (i / (CURVE_STEPS - 1)) * (Math.PI / 2);
-      curve[i] = rising ? Math.sin(t) : Math.cos(t);
+  /**
+   * The fade envelope: equal power, `sin² + cos² = 1` at every point.
+   *
+   * Deliberately not eased, and deliberately not linear in dB. A fader-style dB-linear
+   * crossfade puts both tracks near -33 dB at the midpoint, which is an audible hole in
+   * the middle of the transition. Easing the time parameter avoids that but moves all the
+   * level change into the centre, making the middle steeper than it already is.
+   *
+   * Equal power is what keeps the combined level flat all the way across, which is what a
+   * crossfade between two unrelated recordings needs.
+   */
+  private fadeCurve(rising: boolean, seconds: number) {
+    const points = Math.max(MIN_CURVE_POINTS, Math.round(seconds * CURVE_POINTS_PER_SECOND));
+    const curve = new Float32Array(points);
+
+    for (let i = 0; i < points; i += 1) {
+      const angle = (i / (points - 1)) * (Math.PI / 2);
+      curve[i] = rising ? Math.sin(angle) : Math.cos(angle);
     }
+
     return curve;
   }
 
-  private handover() {
+  /**
+   * The crossfade actually used for a track of this length.
+   *
+   * A fade cannot be longer than the music it has to happen over. Asking for six seconds
+   * on a four-second track makes `remaining <= lead` true from the first frame, so the
+   * handover fires immediately and the track is replaced before it has played — heard as
+   * an abrupt cut rather than as any kind of fade. Capping at a fraction of the duration
+   * keeps a short track audible on its own before anything overlaps it.
+   */
+  private fadeFor(duration: number) {
+    return Math.min(this.crossfadeSeconds, duration * MAX_FADE_FRACTION);
+  }
+
+  /** Runs `start` once the deck actually has audio to play, or after a short grace period. */
+  private whenAudible(deck: Deck, start: () => void) {
+    // HAVE_FUTURE_DATA: enough decoded to keep playing, which is what the fade needs.
+    if (deck.element.readyState >= 3) {
+      start();
+      return;
+    }
+
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      deck.element.removeEventListener('canplay', go);
+      start();
+    };
+
+    deck.element.addEventListener('canplay', go);
+    // Never wait indefinitely: a file that will not buffer must not leave the outgoing
+    // track playing past its own end into silence.
+    setTimeout(go, READY_TIMEOUT_MS);
+  }
+
+  private handover(seconds: number) {
     const next = this.next;
     const context = this.context;
     if (!next || !context) return;
@@ -331,33 +400,44 @@ export class Engine {
 
     void to.element.play().catch(() => {});
 
-    const now = context.currentTime;
-    const seconds = this.crossfadeSeconds;
-
-    if (seconds > 0 && from.fadeGain && to.fadeGain) {
-      from.fadeGain.gain.cancelScheduledValues(now);
-      to.fadeGain.gain.cancelScheduledValues(now);
-      from.fadeGain.gain.setValueCurveAtTime(this.fadeCurve(false), now, seconds);
-      to.fadeGain.gain.setValueCurveAtTime(this.fadeCurve(true), now, seconds);
-    } else {
-      // Gapless: no fade at all. Anything else would be an audible dip exactly where the
-      // recording expects continuity.
-      if (from.fadeGain) from.fadeGain.gain.setValueAtTime(0, now);
-      if (to.fadeGain) to.fadeGain.gain.setValueAtTime(1, now);
-    }
-
     this.active = this.active === 0 ? 1 : 0;
     this.replayGainDb = next.replayGainDb;
     this.next = undefined;
     this.preloaded = false;
 
-    // The outgoing deck keeps playing under the fade; stopping it once the fade is done
-    // frees the decoder. With no fade it is silenced already.
-    const stopAfter = seconds > 0 ? seconds * 1000 : 0;
-    setTimeout(() => {
+    if (seconds > 0) {
+      /*
+       * The outgoing deck stays at full level until the incoming one can actually be
+       * heard. It is still playing its own last seconds, so nothing is lost by waiting,
+       * and starting the ramp against an element that has not buffered would spend the
+       * opening of the fade on silence.
+       */
+      this.whenAudible(to, () => {
+        const start = context.currentTime;
+
+        if (from.fadeGain && to.fadeGain) {
+          from.fadeGain.gain.cancelScheduledValues(start);
+          to.fadeGain.gain.cancelScheduledValues(start);
+          from.fadeGain.gain.setValueCurveAtTime(this.fadeCurve(false, seconds), start, seconds);
+          to.fadeGain.gain.setValueCurveAtTime(this.fadeCurve(true, seconds), start, seconds);
+        }
+
+        // A little past the end of the curve, so the deck is not stopped a frame early
+        // with the envelope still audibly above zero.
+        setTimeout(() => {
+          from.element.pause();
+          this.handingOver = false;
+        }, seconds * 1000 + 80);
+      });
+    } else {
+      // Gapless: no fade at all. Anything else would be an audible dip exactly where the
+      // recording expects continuity.
+      const now = context.currentTime;
+      if (from.fadeGain) from.fadeGain.gain.setValueAtTime(0, now);
+      if (to.fadeGain) to.fadeGain.gain.setValueAtTime(1, now);
       from.element.pause();
       this.handingOver = false;
-    }, stopAfter);
+    }
 
     this.emit('advanced');
     this.watch();
