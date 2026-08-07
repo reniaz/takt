@@ -29,11 +29,22 @@ function shuffleAfter(ids: readonly string[], keep: number) {
   return out;
 }
 
+/**
+ * Where the queue was started from.
+ *
+ * A track can sit in the library and in several playlists at once, so "is this the playing
+ * track" is not enough to decide whether a row should show as playing — by id alone it
+ * lights up in every list that contains it. The source records which list the queue
+ * actually came from, and only that one shows it.
+ */
+export type QueueSource = { kind: 'library' } | { kind: 'playlist'; id: string };
+
 type State = {
   /** Everything known about, keyed by id. */
   tracks: Map<string, TrackInfo>;
   /** Ids in playback order. */
   queue: string[];
+  source: QueueSource | undefined;
   /**
    * The order the queue had before shuffling, kept only while shuffle is on.
    *
@@ -72,8 +83,8 @@ type State = {
 
 type Actions = {
   addTracks: (tracks: readonly TrackInfo[], playFirst?: boolean) => void;
-  /** Replaces the queue and starts at `startAt`. What double-clicking a track does. */
-  playNow: (tracks: readonly TrackInfo[], startAt?: number) => void;
+  /** Replaces the queue and starts at `startAt`. What clicking play on a track does. */
+  playNow: (tracks: readonly TrackInfo[], startAt?: number, source?: QueueSource) => void;
   /** Inserts straight after the current track, so it is what plays next. */
   playNext: (tracks: readonly TrackInfo[]) => void;
   enqueue: (tracks: readonly TrackInfo[]) => void;
@@ -118,6 +129,7 @@ function effectivePreamp(state: Pick<State, 'eqPreampAuto' | 'eqPreamp' | 'eqGai
 export const usePlayer = create<State & Actions>((set, get) => ({
   tracks: new Map(),
   queue: [],
+  source: undefined,
   unshuffled: undefined,
   index: -1,
 
@@ -164,14 +176,20 @@ export const usePlayer = create<State & Actions>((set, get) => ({
     }
   },
 
-  playNow: (incoming, startAt = 0) => {
+  playNow: (incoming, startAt = 0, source) => {
     if (!incoming.length) return;
 
     const tracks = new Map(get().tracks);
     for (const track of incoming) tracks.set(track.id, track);
 
     // A fresh queue, so shuffle's saved order refers to something that still exists.
-    set({ tracks, queue: incoming.map((t) => t.id), unshuffled: undefined, shuffle: false });
+    set({
+      tracks,
+      queue: incoming.map((t) => t.id),
+      unshuffled: undefined,
+      shuffle: false,
+      source,
+    });
     get().playAt(Math.max(0, Math.min(startAt, incoming.length - 1)));
   },
 
@@ -437,7 +455,13 @@ export const usePlayer = create<State & Actions>((set, get) => ({
     const currentId = saved.queue[saved.queueIndex];
     const index = currentId ? queue.indexOf(currentId) : -1;
 
-    set({ tracks: new Map(tracks), queue, index, position: saved.queuePosition });
+    set({
+      tracks: new Map(tracks),
+      queue,
+      index,
+      position: saved.queuePosition,
+      source: saved.queueSource,
+    });
 
     /*
      * Loaded and seeked, but deliberately not played.
@@ -586,6 +610,7 @@ usePlayer.subscribe((state) => {
     // Rounded: `position` changes several times a second, and storing the exact float
     // would rewrite the settings on every tick for a precision nobody can hear.
     queuePosition: Math.floor(state.position),
+    queueSource: state.source,
   });
 });
 

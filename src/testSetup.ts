@@ -33,7 +33,7 @@ const stub = {
 
   library: async () => [],
   pickFiles: async () => [],
-  pickFolder: async () => [],
+  pickFolder: async () => ({ tracks: [], name: '' }),
   addPaths: async () => [],
   removeTracks: async () => [],
   notePlayed: vi.fn(),

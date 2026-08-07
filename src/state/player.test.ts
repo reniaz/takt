@@ -126,6 +126,31 @@ describe('queue actions', () => {
   });
 });
 
+describe('queue source', () => {
+  it('records which list the queue came from', () => {
+    usePlayer.getState().playNow(TRACKS.slice(0, 3), 0, { kind: 'playlist', id: 'pl-1' });
+    expect(usePlayer.getState().source).toEqual({ kind: 'playlist', id: 'pl-1' });
+
+    usePlayer.getState().playNow(TRACKS, 0, { kind: 'library' });
+    expect(usePlayer.getState().source).toEqual({ kind: 'library' });
+  });
+
+  it('is undefined when nothing said where playback came from', () => {
+    usePlayer.getState().playNow(TRACKS.slice(0, 2));
+    expect(usePlayer.getState().source).toBeUndefined();
+  });
+
+  it('survives being restored with the queue', () => {
+    // The same track can sit in the library and several playlists; without the source, a
+    // resumed session would light it up in all of them.
+    usePlayer.getState().playNow(TRACKS.slice(0, 3), 1, { kind: 'playlist', id: 'pl-7' });
+
+    const { source, index, queue } = usePlayer.getState();
+    expect(source).toEqual({ kind: 'playlist', id: 'pl-7' });
+    expect(queue[index]).toBe('t2');
+  });
+});
+
 describe('gapless handover', () => {
   const armed = () => (engine.setNext as unknown as { mock: { calls: unknown[][] } }).mock.calls.at(-1)?.[0] as
     { src: string } | undefined;

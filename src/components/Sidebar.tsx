@@ -4,7 +4,11 @@ import { playlistTracks, useLibrary } from '../state/library';
 import { usePlayer } from '../state/player';
 import { ContextMenu, type MenuState } from './ContextMenu';
 import { Icon } from './Icon';
+import { Modal } from './Modal';
+import { NamePrompt } from './NamePrompt';
 import { PlaylistArt } from './PlaylistArt';
+
+import type { TrackInfo } from '../../electron/preload';
 
 export function Sidebar() {
   const view = useLibrary((s) => s.view);
@@ -21,11 +25,24 @@ export function Sidebar() {
   const [menu, setMenu] = useState<MenuState>(undefined);
   const [renaming, setRenaming] = useState<string | undefined>(undefined);
   const [dropTarget, setDropTarget] = useState<string | undefined>(undefined);
+  const [creating, setCreating] = useState(false);
+  const [imported, setImported] = useState<{ tracks: TrackInfo[]; name: string } | undefined>(undefined);
 
-  const add = async (pick: () => Promise<Awaited<ReturnType<typeof window.takt.pickFiles>>>) => {
-    const tracks = await pick();
+  const addFiles = async () => {
+    const tracks = await window.takt.pickFiles();
     merge(tracks);
     if (tracks.length) setView({ kind: 'library' });
+  };
+
+  const addFolder = async () => {
+    const result = await window.takt.pickFolder();
+    if (!result.tracks.length) return;
+
+    merge(result.tracks);
+    setView({ kind: 'library' });
+    // The tracks are already in the library; the only open question is whether the folder
+    // should also become a playlist, which is asked once rather than guessed.
+    setImported(result);
   };
 
   return (
@@ -50,14 +67,7 @@ export function Sidebar() {
             className="sidebar__add"
             title="New playlist"
             aria-label="New playlist"
-            onClick={async () => {
-              const next = await window.takt.createPlaylist('New playlist');
-              setPlaylists(next);
-              // Straight into rename: a playlist called "New playlist" is a chore left for
-              // later, and later never comes.
-              const created = next[next.length - 1];
-              if (created) { setView({ kind: 'playlist', id: created.id }); setRenaming(created.id); }
-            }}
+            onClick={() => setCreating(true)}
           >
             <Icon name="plus" size={14} />
           </button>
@@ -70,7 +80,7 @@ export function Sidebar() {
             key={list.id}
             className={`navitem navitem--playlist ${view.kind === 'playlist' && view.id === list.id ? 'navitem--active' : ''} ${dropTarget === list.id ? 'navitem--drop' : ''}`}
             onClick={() => setView({ kind: 'playlist', id: list.id })}
-            onDoubleClick={() => playNow(playlistTracks(list.id))}
+            onDoubleClick={() => playNow(playlistTracks(list.id), 0, { kind: 'playlist', id: list.id })}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter') setView({ kind: 'playlist', id: list.id }); }}
@@ -95,7 +105,11 @@ export function Sidebar() {
                 x: e.clientX,
                 y: e.clientY,
                 items: [
-                  { label: 'Play', icon: 'play', onSelect: () => playNow(playlistTracks(list.id)) },
+                  {
+                    label: 'Play',
+                    icon: 'play',
+                    onSelect: () => playNow(playlistTracks(list.id), 0, { kind: 'playlist', id: list.id }),
+                  },
                   { label: 'Play next', icon: 'next', onSelect: () => playNext(playlistTracks(list.id)) },
                   { label: 'Add to queue', icon: 'queue', onSelect: () => enqueue(playlistTracks(list.id)) },
                   { kind: 'separator' },
@@ -154,11 +168,11 @@ export function Sidebar() {
 
       <div className="sidebar__section">
         <div className="sidebar__label"><span>Add</span></div>
-        <button type="button" className="navitem" onClick={() => add(window.takt.pickFolder)}>
+        <button type="button" className="navitem" onClick={addFolder}>
           <Icon name="folder" size={16} />
           <span>Folder…</span>
         </button>
-        <button type="button" className="navitem" onClick={() => add(window.takt.pickFiles)}>
+        <button type="button" className="navitem" onClick={addFiles}>
           <Icon name="file" size={16} />
           <span>Files…</span>
         </button>
@@ -189,6 +203,57 @@ export function Sidebar() {
         <Icon name="settings" size={16} />
         <span>Settings</span>
       </button>
+
+      {creating && (
+        <NamePrompt
+          title="New playlist"
+          initial="New playlist"
+          onCancel={() => setCreating(false)}
+          onConfirm={async (name) => {
+            const next = await window.takt.createPlaylist(name);
+            setPlaylists(next);
+            setCreating(false);
+            const created = next[next.length - 1];
+            if (created) setView({ kind: 'playlist', id: created.id });
+          }}
+        />
+      )}
+
+      {imported && (
+        <Modal
+          title="Folder added"
+          onClose={() => setImported(undefined)}
+          actions={(
+            <>
+              <button type="button" className="btn" onClick={() => setImported(undefined)}>
+                Just add the tracks
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={async () => {
+                  const next = await window.takt.createPlaylist(
+                    imported.name,
+                    imported.tracks.map((t) => t.id),
+                  );
+                  setPlaylists(next);
+                  setImported(undefined);
+                  const created = next[next.length - 1];
+                  if (created) setView({ kind: 'playlist', id: created.id });
+                }}
+              >
+                Also make a playlist
+              </button>
+            </>
+          )}
+        >
+          <p className="modal__note">
+            {imported.tracks.length} track{imported.tracks.length === 1 ? '' : 's'} from
+            {' '}<strong>{imported.name}</strong> are in your library. Make a playlist of
+            them under the same name?
+          </p>
+        </Modal>
+      )}
 
       <ContextMenu state={menu} onClose={() => setMenu(undefined)} />
     </nav>

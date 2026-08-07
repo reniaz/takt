@@ -44,7 +44,8 @@ const api = {
   /* Library */
   library: (): Promise<TrackInfo[]> => ipcRenderer.invoke('takt:library'),
   pickFiles: (): Promise<TrackInfo[]> => ipcRenderer.invoke('takt:pick-files'),
-  pickFolder: (): Promise<TrackInfo[]> => ipcRenderer.invoke('takt:pick-folder'),
+  /** The folder's name comes back too, as the obvious playlist name to offer. */
+  pickFolder: (): Promise<{ tracks: TrackInfo[]; name: string }> => ipcRenderer.invoke('takt:pick-folder'),
   addPaths: (paths: string[]): Promise<TrackInfo[]> => ipcRenderer.invoke('takt:add-paths', paths),
   /**
    * The path behind a dropped File.

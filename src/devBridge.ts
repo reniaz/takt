@@ -73,7 +73,7 @@ export function installDevBridge() {
 
     library: async () => library,
     pickFiles: async () => { library = SAMPLE; persist(); return SAMPLE; },
-    pickFolder: async () => { library = SAMPLE; persist(); return SAMPLE; },
+    pickFolder: async () => { library = SAMPLE; persist(); return { tracks: SAMPLE, name: 'Zuckerzeit' }; },
     addPaths: async () => { library = SAMPLE; persist(); return SAMPLE; },
     removeTracks: async (ids) => {
       library = library.filter((t) => !ids.includes(t.id));

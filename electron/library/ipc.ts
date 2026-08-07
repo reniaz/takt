@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
-import { dirname, extname, resolve } from 'node:path';
+import { basename, dirname, extname, resolve } from 'node:path';
 
 import { dialog, ipcMain, shell } from 'electron';
 
@@ -87,14 +87,22 @@ export function initLibrary(getWindow: () => BrowserWindow | undefined) {
     return result.canceled ? [] : ingest(result.filePaths);
   });
 
+  /**
+   * The folder's own name comes back with its tracks.
+   *
+   * It is what the renderer offers as the playlist name, and only the main process knows
+   * it — the renderer never sees a path.
+   */
   ipcMain.handle('takt:pick-folder', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Add a music folder',
       properties: ['openDirectory'],
     });
 
-    if (result.canceled || !result.filePaths[0]) return [];
-    return ingest(await walk(result.filePaths[0]));
+    const dir = result.filePaths[0];
+    if (result.canceled || !dir) return { tracks: [], name: '' };
+
+    return { tracks: await ingest(await walk(dir)), name: basename(dir) };
   });
 
   /** Paths dropped on the window, or handed over by Explorer. */

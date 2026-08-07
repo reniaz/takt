@@ -3,7 +3,7 @@ import { DEFAULT_THEME_ID } from '../themes/themes';
 
 import type { Preset } from '../audio/eq';
 import type { ReplayGainMode } from '../audio/replaygain';
-import type { Repeat } from './player';
+import type { QueueSource, Repeat } from './player';
 
 /**
  * Settings that outlive the window.
@@ -51,6 +51,8 @@ export type Persisted = {
   queue: string[];
   queueIndex: number;
   queuePosition: number;
+  /** Which list the queue came from, so the playing row lights up in the right place. */
+  queueSource: QueueSource | undefined;
 };
 
 export const DEFAULTS: Persisted = {
@@ -80,6 +82,7 @@ export const DEFAULTS: Persisted = {
   queue: [],
   queueIndex: -1,
   queuePosition: 0,
+  queueSource: undefined,
 };
 
 export function load(): Persisted {

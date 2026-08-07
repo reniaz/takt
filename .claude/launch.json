@@ -4,7 +4,7 @@
     {
       "name": "takt-renderer",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": ["run", "dev:web"],
       "port": 5273
     }
   ]
