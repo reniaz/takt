@@ -18,6 +18,9 @@ export function Sidebar() {
   const setPlaylists = useLibrary((s) => s.setPlaylists);
   const merge = useLibrary((s) => s.merge);
   const trackCount = useLibrary((s) => s.tracks.size);
+  const favouriteCount = useLibrary(
+    (s) => [...s.tracks.values()].reduce((n, t) => n + (t.favourite ? 1 : 0), 0),
+  );
 
   const enqueue = usePlayer((s) => s.enqueue);
   const playNow = usePlayer((s) => s.playNow);
@@ -84,6 +87,16 @@ export function Sidebar() {
         >
           <Icon name="artist" size={16} />
           <span>Artists</span>
+        </button>
+
+        <button
+          type="button"
+          className={`navitem ${view.kind === 'favourites' ? 'navitem--active' : ''}`}
+          onClick={() => setView({ kind: 'favourites' })}
+        >
+          <Icon name="heart" size={16} />
+          <span>Favourites</span>
+          <span className="navitem__count">{favouriteCount || ''}</span>
         </button>
 
         <button

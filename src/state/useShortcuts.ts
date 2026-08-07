@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { useLibrary } from './library';
 import { engine, usePlayer } from './player';
 
 /**
@@ -59,6 +60,12 @@ export function useShortcuts() {
           if (event.key === 's' || event.key === 'S') player.toggleShuffle();
           else if (event.key === 'r' || event.key === 'R') player.cycleRepeat();
           else if (event.key === 'm' || event.key === 'M') player.toggleMute();
+          else if (event.key === 'f' || event.key === 'F') {
+            // The playing track, not the selected one: a shortcut with no modifier is for
+            // reacting to what you are hearing.
+            const id = player.queue[player.index];
+            if (id) useLibrary.getState().toggleFavourite([id]);
+          }
       }
     };
 

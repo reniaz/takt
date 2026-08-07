@@ -66,6 +66,7 @@ const api = {
   },
   removeTracks: (ids: string[]): Promise<TrackInfo[]> => ipcRenderer.invoke('takt:remove-tracks', ids),
   notePlayed: (id: string) => ipcRenderer.send('takt:note-played', id),
+  setFavourite: (id: string, favourite: boolean) => ipcRenderer.send('takt:set-favourite', id, favourite),
   reveal: (id: string): Promise<void> => ipcRenderer.invoke('takt:reveal', id),
   /** Cached seek-bar peaks, or undefined if none are stored for this file as it is now. */
   getWaveform: (id: string): Promise<Uint8Array | undefined> => ipcRenderer.invoke('takt:waveform-get', id),
@@ -144,6 +145,7 @@ export type TrackInfo = {
   addedAt?: number;
   playCount?: number;
   lastPlayedAt?: number;
+  favourite?: boolean;
 };
 
 export type PlaylistInfo = {

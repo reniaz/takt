@@ -806,7 +806,7 @@ body.is-resizing {
 .cols,
 .row {
   display: grid;
-  grid-template-columns: 30px 34px minmax(0, 1fr) minmax(0, 0.7fr) 52px 48px;
+  grid-template-columns: 30px 34px minmax(0, 1fr) minmax(0, 0.7fr) 26px 52px 48px;
   gap: 12px;
   align-items: center;
   padding: 6px 10px;
@@ -925,6 +925,32 @@ body.is-resizing {
 }
 
 .row__plays { color: var(--takt-text-faint); }
+
+/*
+ * Filled hearts stay visible; empty ones appear on hover. A column of hollow outlines down
+ * a whole library is noise, and the ones that are set are exactly what is worth seeing at
+ * a glance.
+ */
+.row__fav {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--takt-text-faint);
+  border-radius: 50%;
+  opacity: 0;
+  transition: color 120ms, opacity 120ms, transform 100ms;
+
+  .row:hover &,
+  &:focus-visible { opacity: 1; }
+
+  &:hover { color: var(--takt-accent); transform: scale(1.12); }
+
+  &--on {
+    color: var(--takt-accent);
+    opacity: 1;
+  }
+}
 
 /* ---------- album grid ---------- */
 

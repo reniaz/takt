@@ -45,6 +45,7 @@ function saveSort(sort: Sort) {
 
 export type View =
   | { kind: 'library' }
+  | { kind: 'favourites' }
   | { kind: 'recent' }
   | { kind: 'albums' }
   | { kind: 'artists' }
@@ -76,6 +77,8 @@ type Actions = {
   setScan: (scan: { done: number; total: number } | undefined) => void;
   removeTracks: (ids: readonly string[]) => Promise<void>;
   notePlayed: (id: string) => void;
+  /** Toggles one track, or sets a whole selection to the same state. */
+  toggleFavourite: (ids: readonly string[]) => void;
 };
 
 export const useLibrary = create<State & Actions>((set, get) => ({
@@ -151,6 +154,35 @@ export const useLibrary = create<State & Actions>((set, get) => ({
 
     const tracks = new Map(get().tracks);
     tracks.set(id, { ...track, playCount: (track.playCount ?? 0) + 1, lastPlayedAt: Date.now() });
+    set({ tracks });
+  },
+
+  /**
+   * Applied locally first, then persisted.
+   *
+   * A heart has to fill the instant it is clicked; waiting on a round trip to main to
+   * redraw would make it feel broken even though nothing is slow.
+   *
+   * With several tracks selected the first one decides the direction for all of them —
+   * toggling each independently would just invert a mixed selection, which is never what
+   * anyone means by clicking one heart.
+   */
+  toggleFavourite: (ids) => {
+    if (!ids.length) return;
+
+    const current = get().tracks;
+    const first = current.get(ids[0] as string);
+    const next = !first?.favourite;
+
+    const tracks = new Map(current);
+    for (const id of ids) {
+      const track = tracks.get(id);
+      if (!track || Boolean(track.favourite) === next) continue;
+
+      tracks.set(id, { ...track, favourite: next });
+      window.takt.setFavourite(id, next);
+    }
+
     set({ tracks });
   },
 

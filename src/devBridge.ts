@@ -81,6 +81,11 @@ export function installDevBridge() {
       return library;
     },
     notePlayed: () => {},
+    setFavourite: (id, favourite) => {
+      const track = library.find((t) => t.id === id);
+      if (track) track.favourite = favourite;
+      persist();
+    },
     reveal: async () => {},
     getWaveform: async () => undefined,
     putWaveform: () => {},

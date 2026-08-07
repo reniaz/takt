@@ -55,6 +55,8 @@ export type TrackRow = {
   addedAt: number;
   playCount: number;
   lastPlayedAt: number | null;
+  /** SQLite has no boolean; 0 or 1. */
+  favourite: number;
 };
 
 export type PlaylistRow = {
@@ -130,6 +132,11 @@ const MIGRATIONS: string[] = [
     peaks   blob not null
   );
   `,
+
+  `
+  alter table tracks add column favourite integer not null default 0;
+  create index tracks_favourite on tracks(favourite) where favourite = 1;
+  `,
 ];
 
 export function open() {
@@ -183,7 +190,8 @@ const UPSERT_TRACK = `
     rgTrack = excluded.rgTrack, rgAlbum = excluded.rgAlbum
 `;
 
-type TrackInput = Omit<TrackRow, 'addedAt' | 'playCount' | 'lastPlayedAt'>;
+/* Matches the columns UPSERT_TRACK writes. Anything not from the file stays out. */
+type TrackInput = Omit<TrackRow, 'addedAt' | 'playCount' | 'lastPlayedAt' | 'favourite'>;
 
 export function upsertTracks(tracks: readonly TrackInput[]) {
   const handle = conn();
@@ -228,6 +236,17 @@ export function removeTracks(ids: readonly string[]) {
 export function notePlayed(id: string) {
   conn().prepare('update tracks set playCount = playCount + 1, lastPlayedAt = ? where id = ?')
     .run(Date.now(), id);
+}
+
+/**
+ * Marks a track as a favourite, or unmarks it.
+ *
+ * Survives a rescan: `UPSERT_TRACK` lists the columns it overwrites and this is not among
+ * them, so re-reading a file's tags leaves the choice alone. That matters — retagging an
+ * album should not silently empty the Favourites list.
+ */
+export function setFavourite(id: string, favourite: boolean) {
+  conn().prepare('update tracks set favourite = ? where id = ?').run(favourite ? 1 : 0, id);
 }
 
 /* ---------- playlists ---------- */

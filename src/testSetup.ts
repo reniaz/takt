@@ -37,6 +37,7 @@ const stub = {
   addPaths: async () => [],
   removeTracks: async () => [],
   notePlayed: vi.fn(),
+  setFavourite: vi.fn(),
   reveal: async () => {},
   getWaveform: async () => undefined,
   putWaveform: vi.fn(),

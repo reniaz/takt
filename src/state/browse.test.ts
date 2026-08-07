@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  albumKey, byDiscAndTrack, creditedArtist, filterTracks, groupAlbums, groupArtists,
+  albumKey, byDiscAndTrack, creditedArtist, favourites, filterTracks, groupAlbums, groupArtists,
   recentlyPlayed, searchEverything, sortTracks, UNKNOWN_ALBUM, UNKNOWN_ARTIST,
 } from './browse';
 
@@ -224,6 +224,32 @@ describe('sortTracks', () => {
     const original = tracks.map((x) => x.id);
     sortTracks(tracks, { key: 'title', dir: 'desc' });
     expect(tracks.map((x) => x.id)).toEqual(original);
+  });
+});
+
+describe('favourites', () => {
+  it('returns only favourites, newest addition first', () => {
+    // Newest first, because a list built one track at a time reads best with the thing
+    // you just did at the top.
+    const tracks = [
+      t('old', { favourite: true, addedAt: 100 }),
+      t('plain'),
+      t('new', { favourite: true, addedAt: 300 }),
+    ];
+    expect(favourites(tracks).map((x) => x.id)).toEqual(['new', 'old']);
+  });
+
+  it('is empty when nothing is favourited', () => {
+    expect(favourites([t('a'), t('b')])).toEqual([]);
+  });
+
+  it('falls back to title when two were added at the same moment', () => {
+    // A folder import stamps every track with one addedAt, so this is the common case.
+    const tracks = [
+      t('b', { title: 'Beta', favourite: true, addedAt: 5 }),
+      t('a', { title: 'Alpha', favourite: true, addedAt: 5 }),
+    ];
+    expect(favourites(tracks).map((x) => x.title)).toEqual(['Alpha', 'Beta']);
   });
 });
 

@@ -68,6 +68,10 @@ const ICONS = {
   sortDesc: <path d="M6 6v12M6 18l-3.5-3.5M6 18l3.5-3.5M13 7h4M13 12h6M13 17h8" />,
   chevronRight: <path d="m9 5 7 7-7 7" />,
   mini: <><rect x="2.5" y="4.5" width="19" height="15" rx="2" /><rect x="12" y="12" width="8" height="6" rx="1" /></>,
+  heart: <path d="M12 20.4 4.6 13a4.6 4.6 0 0 1 6.5-6.5l.9.9.9-.9A4.6 4.6 0 1 1 19.4 13z" />,
+  // Same outline, filled. Drawn as its own entry rather than toggling `fill` on the other,
+  // so the stroke stays and the shape does not visibly grow when it fills.
+  heartFull: <path {...solid} d="M12 20.4 4.6 13a4.6 4.6 0 0 1 6.5-6.5l.9.9.9-.9A4.6 4.6 0 1 1 19.4 13z" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof ICONS;

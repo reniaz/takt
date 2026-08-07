@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { formatTime } from '../audio/time';
 import {
-  albumKey, byDiscAndTrack, creditedArtist, filterTracks, recentlyPlayed, sortTracks,
-  type SortKey,
+  albumKey, byDiscAndTrack, creditedArtist, favourites, filterTracks, recentlyPlayed,
+  sortTracks, type SortKey,
 } from '../state/browse';
 import { playlistTracks, useLibrary } from '../state/library';
 import { usePlayer } from '../state/player';
@@ -37,6 +37,7 @@ export function TrackList() {
   const setPlaylists = useLibrary((s) => s.setPlaylists);
   const removeTracks = useLibrary((s) => s.removeTracks);
   const setView = useLibrary((s) => s.setView);
+  const toggleFavourite = useLibrary((s) => s.toggleFavourite);
 
   const currentId = usePlayer((s) => s.queue[s.index]);
   const source = usePlayer((s) => s.source);
@@ -72,10 +73,12 @@ export function TrackList() {
         ? artistTracks(view.name, all)
         : view.kind === 'recent'
           ? recentlyPlayed([...all.values()])
-          : sortTracks([...all.values()], sort);
+          : view.kind === 'favourites'
+            ? favourites([...all.values()])
+            : sortTracks([...all.values()], sort);
 
   const keepsOwnOrder = view.kind === 'playlist' || view.kind === 'album'
-    || view.kind === 'artist' || view.kind === 'recent';
+    || view.kind === 'artist' || view.kind === 'recent' || view.kind === 'favourites';
 
   const tracks: TrackInfo[] = filterTracks(ordered, query);
 
@@ -142,6 +145,13 @@ export function TrackList() {
       { label: 'Play next', icon: 'next', onSelect: () => playNext(chosen) },
       { label: 'Add to queue', icon: 'queue', onSelect: () => enqueue(chosen) },
       { kind: 'separator' },
+      {
+        label: chosen[0]?.favourite
+          ? (many ? 'Remove from favourites' : 'Remove from favourites')
+          : (many ? `Add ${ids.length} to favourites` : 'Add to favourites'),
+        icon: chosen[0]?.favourite ? 'heartFull' : 'heart',
+        onSelect: () => toggleFavourite(ids),
+      },
       ...addToPlaylistItems(ids),
       { kind: 'separator' },
       ...(playlist
@@ -174,6 +184,7 @@ export function TrackList() {
       {view.kind === 'album' && <AlbumHeader albumKey={view.key} />}
       {view.kind === 'artist' && <SimpleHeader kind="Artist" title={view.name} tracks={tracks} source={here} />}
       {view.kind === 'recent' && <SimpleHeader kind="Recently played" title="Recently played" tracks={tracks} source={here} />}
+      {view.kind === 'favourites' && <SimpleHeader kind="Favourites" title="Favourites" tracks={tracks} source={here} />}
 
       {!keepsOwnOrder && (
         <div className="cols" role="row">
@@ -181,6 +192,7 @@ export function TrackList() {
           <span />
           <SortHeader label="Title" sortKey="title" sort={sort} onSort={toggleSort} />
           <SortHeader label="Album" sortKey="album" sort={sort} onSort={toggleSort} />
+          <span />
           <SortHeader label="Plays" sortKey="plays" sort={sort} onSort={toggleSort} align="right" />
           <SortHeader label="Time" sortKey="duration" sort={sort} onSort={toggleSort} align="right" />
         </div>
@@ -263,6 +275,26 @@ export function TrackList() {
               </div>
 
               <div className="row__album">{track.album ?? ''}</div>
+
+              {/*
+                Filled hearts stay visible; empty ones appear on hover. A column of hollow
+                outlines down an entire library is noise, and the ones that are set are
+                exactly the thing worth seeing at a glance.
+              */}
+              <button
+                type="button"
+                className={`row__fav ${track.favourite ? 'row__fav--on' : ''}`}
+                aria-pressed={Boolean(track.favourite)}
+                aria-label={track.favourite ? `Remove ${track.title} from favourites` : `Add ${track.title} to favourites`}
+                title={track.favourite ? 'Remove from favourites' : 'Add to favourites'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFavourite(targets(track.id));
+                }}
+              >
+                <Icon name={track.favourite ? 'heartFull' : 'heart'} size={14} />
+              </button>
+
               <div className="row__plays">{track.playCount || ''}</div>
               <div className="row__time">{track.duration ? formatTime(track.duration) : ''}</div>
             </div>

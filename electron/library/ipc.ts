@@ -126,6 +126,10 @@ export function initLibrary(getWindow: () => BrowserWindow | undefined) {
 
   ipcMain.on('takt:note-played', (_event, id: string) => db.notePlayed(id));
 
+  ipcMain.on('takt:set-favourite', (_event, id: string, favourite: boolean) => {
+    db.setFavourite(id, favourite);
+  });
+
   /* ---------- playlists ---------- */
 
   ipcMain.handle('takt:playlists', () => playlists());

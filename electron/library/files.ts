@@ -55,7 +55,14 @@ function gainToDb(value: unknown): number | null {
   return null;
 }
 
-type ParsedTrack = Omit<TrackRow, 'addedAt' | 'playCount' | 'lastPlayedAt'>;
+/*
+ * What reading a file's tags can tell you.
+ *
+ * `favourite` is excluded along with the play statistics: none of them come from the file,
+ * and all of them must survive a rescan. The upsert leaves these columns alone for the
+ * same reason — retagging an album should not empty the Favourites list.
+ */
+type ParsedTrack = Omit<TrackRow, 'addedAt' | 'playCount' | 'lastPlayedAt' | 'favourite'>;
 
 /**
  * Reads tags for one file.
@@ -139,6 +146,7 @@ export function toTrackInfo(row: TrackRow): TrackInfo {
     addedAt: row.addedAt,
     playCount: row.playCount,
     ...(row.lastPlayedAt !== null ? { lastPlayedAt: row.lastPlayedAt } : undefined),
+    favourite: row.favourite === 1,
   };
 }
 
