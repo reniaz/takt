@@ -211,6 +211,45 @@ describe('gapless handover', () => {
   });
 });
 
+describe('playShuffled', () => {
+  it('keeps every track exactly once', () => {
+    usePlayer.getState().playShuffled(TRACKS);
+    expect([...ids()].sort()).toEqual(TRACKS.map((t) => t.id).sort());
+  });
+
+  it('starts at the head with shuffle on', () => {
+    usePlayer.getState().playShuffled(TRACKS);
+    expect(usePlayer.getState().index).toBe(0);
+    expect(usePlayer.getState().shuffle).toBe(true);
+  });
+
+  it('can put any track first, unlike toggling shuffle while playing', () => {
+    /*
+     * The distinction that makes this its own action: toggleShuffle pins the current
+     * track at the head, so the first track would never be random — which is exactly the
+     * one anybody notices.
+     */
+    const firsts = new Set<string>();
+    for (let i = 0; i < 40; i += 1) {
+      usePlayer.setState({ queue: [], index: -1, unshuffled: undefined, shuffle: false });
+      usePlayer.getState().playShuffled(TRACKS);
+      firsts.add(ids()[0] as string);
+    }
+    expect(firsts.size).toBeGreaterThan(1);
+  });
+
+  it('restores the original order when shuffle is switched off', () => {
+    usePlayer.getState().playShuffled(TRACKS, { kind: 'playlist', id: 'pl-1' });
+    usePlayer.getState().toggleShuffle();
+    expect(ids()).toEqual(TRACKS.map((t) => t.id));
+  });
+
+  it('records the source it was started from', () => {
+    usePlayer.getState().playShuffled(TRACKS, { kind: 'playlist', id: 'pl-9' });
+    expect(usePlayer.getState().source).toEqual({ kind: 'playlist', id: 'pl-9' });
+  });
+});
+
 describe('shuffle', () => {
   it('leaves the current track where it is', () => {
     usePlayer.getState().addTracks(TRACKS);

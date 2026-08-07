@@ -115,6 +115,7 @@ export function AlbumHeader({ albumKey: key }: { albumKey: string }) {
   const previous = useLibrary((s) => s.previous);
   const goBack = useLibrary((s) => s.goBack);
   const playNow = usePlayer((s) => s.playNow);
+  const playShuffled = usePlayer((s) => s.playShuffled);
   const enqueue = usePlayer((s) => s.enqueue);
 
   const album = useMemo(
@@ -156,6 +157,9 @@ export function AlbumHeader({ albumKey: key }: { albumKey: string }) {
         <div className="plhead__actions">
           <button type="button" className="btn btn--primary" onClick={() => playNow(ordered, 0, { kind: 'library' })}>
             <Icon name="play" size={14} /> Play
+          </button>
+          <button type="button" className="btn" onClick={() => playShuffled(ordered, { kind: 'library' })}>
+            <Icon name="shuffle" size={14} /> Shuffle
           </button>
           <button type="button" className="btn" onClick={() => enqueue(ordered)}>
             <Icon name="queue" size={14} /> Add to queue

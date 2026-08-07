@@ -21,6 +21,7 @@ export function Sidebar() {
 
   const enqueue = usePlayer((s) => s.enqueue);
   const playNow = usePlayer((s) => s.playNow);
+  const playShuffled = usePlayer((s) => s.playShuffled);
   const playNext = usePlayer((s) => s.playNext);
 
   const [menu, setMenu] = useState<MenuState>(undefined);
@@ -145,6 +146,11 @@ export function Sidebar() {
                     label: 'Play',
                     icon: 'play',
                     onSelect: () => playNow(playlistTracks(list.id), 0, { kind: 'playlist', id: list.id }),
+                  },
+                  {
+                    label: 'Shuffle',
+                    icon: 'shuffle',
+                    onSelect: () => playShuffled(playlistTracks(list.id), { kind: 'playlist', id: list.id }),
                   },
                   { label: 'Play next', icon: 'next', onSelect: () => playNext(playlistTracks(list.id)) },
                   { label: 'Add to queue', icon: 'queue', onSelect: () => enqueue(playlistTracks(list.id)) },

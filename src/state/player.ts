@@ -115,6 +115,8 @@ type Actions = {
   addTracks: (tracks: readonly TrackInfo[], playFirst?: boolean) => void;
   /** Replaces the queue and starts at `startAt`. What clicking play on a track does. */
   playNow: (tracks: readonly TrackInfo[], startAt?: number, source?: QueueSource) => void;
+  /** Shuffles the whole list and starts it. Not the same as playing then toggling shuffle. */
+  playShuffled: (tracks: readonly TrackInfo[], source?: QueueSource) => void;
   /** Inserts straight after the current track, so it is what plays next. */
   playNext: (tracks: readonly TrackInfo[]) => void;
   enqueue: (tracks: readonly TrackInfo[]) => void;
@@ -225,6 +227,31 @@ export const usePlayer = create<State & Actions>((set, get) => ({
       source,
     });
     get().playAt(Math.max(0, Math.min(startAt, incoming.length - 1)));
+  },
+
+  /*
+   * Every track is in play, including the first.
+   *
+   * `toggleShuffle` deliberately pins the current track at the head — it reorders what is
+   * still to come without interrupting what is playing. Starting a playlist shuffled is
+   * the opposite situation: nothing is playing yet, so pinning anything would make the
+   * first track never random, which is exactly the one people notice.
+   */
+  playShuffled: (incoming, source) => {
+    if (!incoming.length) return;
+
+    const tracks = new Map(get().tracks);
+    for (const track of incoming) tracks.set(track.id, track);
+
+    const order = incoming.map((t) => t.id);
+    const shuffled = [...order];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j] as string, shuffled[i] as string];
+    }
+
+    set({ tracks, queue: shuffled, unshuffled: order, shuffle: true, source });
+    get().playAt(0);
   },
 
   playNext: (incoming) => {

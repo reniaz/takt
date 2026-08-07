@@ -308,6 +308,8 @@ function PlaylistHeader({ id, tracks, source }: { id: string; tracks: TrackInfo[
   const playNow = usePlayer((s) => s.playNow);
   const enqueue = usePlayer((s) => s.enqueue);
 
+  const playShuffled = usePlayer((s) => s.playShuffled);
+
   const [renaming, setRenaming] = useState(false);
   const playlist = playlists.find((p) => p.id === id);
   if (!playlist) return null;
@@ -349,6 +351,9 @@ function PlaylistHeader({ id, tracks, source }: { id: string; tracks: TrackInfo[
         <div className="plhead__actions">
           <button type="button" className="btn btn--primary" disabled={!tracks.length} onClick={() => playNow(tracks, 0, source)}>
             <Icon name="play" size={14} /> Play
+          </button>
+          <button type="button" className="btn" disabled={!tracks.length} onClick={() => playShuffled(tracks, source)}>
+            <Icon name="shuffle" size={14} /> Shuffle
           </button>
           <button type="button" className="btn" disabled={!tracks.length} onClick={() => enqueue(tracks)}>
             <Icon name="queue" size={14} /> Add to queue
@@ -455,6 +460,7 @@ function SimpleHeader({
   const goBack = useLibrary((s) => s.goBack);
   const previous = useLibrary((s) => s.previous);
   const playNow = usePlayer((s) => s.playNow);
+  const playShuffled = usePlayer((s) => s.playShuffled);
   const enqueue = usePlayer((s) => s.enqueue);
 
   return (
@@ -475,6 +481,9 @@ function SimpleHeader({
         <div className="plhead__actions">
           <button type="button" className="btn btn--primary" disabled={!tracks.length} onClick={() => playNow(tracks, 0, source)}>
             <Icon name="play" size={14} /> Play
+          </button>
+          <button type="button" className="btn" disabled={!tracks.length} onClick={() => playShuffled(tracks, source)}>
+            <Icon name="shuffle" size={14} /> Shuffle
           </button>
           <button type="button" className="btn" disabled={!tracks.length} onClick={() => enqueue(tracks)}>
             <Icon name="queue" size={14} /> Add to queue
