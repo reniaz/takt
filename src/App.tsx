@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Albums, Artists } from './components/Browse';
 import { Equalizer } from './components/Equalizer';
 import { Icon } from './components/Icon';
+import { NowPlayingScreen } from './components/NowPlayingScreen';
 import { PlayerBar } from './components/PlayerBar';
 import { Queue } from './components/Queue';
 import { Resizer } from './components/Resizer';
@@ -20,6 +21,7 @@ import { useTheme } from './themes/useTheme';
 export function App() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [eqOpen, setEqOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [version, setVersion] = useState('');
   const [dropping, setDropping] = useState(false);
 
@@ -131,7 +133,10 @@ export function App() {
         eqOpen={eqOpen}
         onToggleQueue={() => setQueueOpen((open) => !open)}
         onToggleEq={() => setEqOpen((open) => !open)}
+        onOpenFullscreen={() => setFullscreen(true)}
       />
+
+      {fullscreen && <NowPlayingScreen onClose={() => setFullscreen(false)} />}
 
       <UpdateBanner />
 

@@ -29,6 +29,7 @@ const stub = {
   toggleMaximize: vi.fn(),
   close: vi.fn(),
   isMaximized: async () => false,
+  setFullscreen: vi.fn(),
   onWindowState: noop,
 
   library: async () => [],

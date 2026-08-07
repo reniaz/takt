@@ -69,6 +69,7 @@ export function installDevBridge() {
     toggleMaximize: () => { maximized = !maximized; },
     close: () => {},
     isMaximized: async () => maximized,
+    setFullscreen: () => {},
     onWindowState: noop,
 
     library: async () => library,

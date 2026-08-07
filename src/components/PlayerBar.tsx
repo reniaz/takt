@@ -1,3 +1,4 @@
+import { useLibrary } from '../state/library';
 import { currentTrack, usePlayer } from '../state/player';
 import { Icon } from './Icon';
 import { SeekBar } from './SeekBar';
@@ -6,11 +7,13 @@ import { SleepTimer } from './SleepTimer';
 export function PlayerBar({
   onToggleQueue,
   onToggleEq,
+  onOpenFullscreen,
   queueOpen,
   eqOpen,
 }: {
   onToggleQueue: () => void;
   onToggleEq: () => void;
+  onOpenFullscreen: () => void;
   queueOpen: boolean;
   eqOpen: boolean;
 }) {
@@ -26,10 +29,19 @@ export function PlayerBar({
   const toggleShuffle = usePlayer((s) => s.toggleShuffle);
   const cycleRepeat = usePlayer((s) => s.cycleRepeat);
 
-  // Subscribing to the whole map would re-render on every metadata write; the index and
-  // queue identity are what actually change the displayed track.
-  usePlayer((s) => s.index);
-  const track = currentTrack();
+  const toggleFavourite = useLibrary((s) => s.toggleFavourite);
+  const playingId = usePlayer((s) => s.queue[s.index]);
+
+  /*
+   * Resolved from the library, not from the queue's own copy.
+   *
+   * The player store keeps a snapshot of each queued track so it can play without the
+   * library loaded. That snapshot is not updated when a track is favourited — the library
+   * is — so reading the queue's copy here would leave the heart showing whatever was true
+   * when the track started.
+   */
+  const track = useLibrary((s) => (playingId ? s.tracks.get(playingId) : undefined))
+    ?? (playingId ? currentTrack() : undefined);
 
   return (
     <footer className="player">
@@ -47,6 +59,20 @@ export function PlayerBar({
             {error ? <span className="player__error">{error}</span> : (track?.artist ?? '')}
           </div>
         </div>
+
+        {/* Beside what is playing, which is where the reaction to it happens. */}
+        {track && (
+          <button
+            type="button"
+            className={`ctl player__fav ${track.favourite ? 'ctl--on' : ''}`}
+            aria-pressed={Boolean(track.favourite)}
+            aria-label={track.favourite ? 'Remove from favourites' : 'Add to favourites'}
+            title={track.favourite ? 'Remove from favourites' : 'Add to favourites'}
+            onClick={() => toggleFavourite([track.id])}
+          >
+            <Icon name={track.favourite ? 'heartFull' : 'heart'} size={17} />
+          </button>
+        )}
       </div>
 
       <div className="player__center">
@@ -126,6 +152,18 @@ export function PlayerBar({
           aria-pressed={queueOpen}
         >
           <Icon name="queue" size={18} />
+        </button>
+
+        {/* Far right, and last: it takes over the whole screen. */}
+        <button
+          type="button"
+          className="ctl"
+          onClick={onOpenFullscreen}
+          disabled={!hasQueue}
+          title="Fullscreen visualizer"
+          aria-label="Fullscreen visualizer"
+        >
+          <Icon name="expand" size={17} />
         </button>
       </div>
     </footer>

@@ -32,6 +32,16 @@ export function initWindowControls() {
   ipcMain.handle('takt:window-is-maximized', (event) => {
     return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false;
   });
+
+  /*
+   * Real fullscreen, not a maximised window.
+   *
+   * The visualizer is meant to be the only thing on screen; a maximised window still shows
+   * the taskbar and, on a frameless window, leaves the drag region live at the top edge.
+   */
+  ipcMain.on('takt:set-fullscreen', (event, on: boolean) => {
+    BrowserWindow.fromWebContents(event.sender)?.setFullScreen(on);
+  });
 }
 
 /**

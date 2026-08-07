@@ -1910,6 +1910,100 @@ input[type='range'] {
   text-align: center;
 }
 
+/* ---------- fullscreen visualizer ---------- */
+
+.viz {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: grid;
+  place-items: center;
+  background: var(--takt-bg);
+  user-select: none;
+}
+
+/* Behind the artwork and text, filling the screen. */
+.viz__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.5;
+}
+
+.viz__content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: min(80vw, 520px);
+  text-align: center;
+}
+
+.viz__art {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: min(38vh, 320px);
+  height: min(38vh, 320px);
+  margin-bottom: 26px;
+  color: var(--takt-text-faint);
+  background: var(--takt-raised);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px var(--takt-shadow);
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+}
+
+.viz__title {
+  overflow: hidden;
+  max-width: 100%;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viz__artist { margin-top: 6px; font-size: 16px; color: var(--takt-text-muted); }
+.viz__album { margin-top: 2px; font-size: 13px; color: var(--takt-text-faint); }
+
+.viz__bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  margin-top: 28px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--takt-text-faint);
+}
+
+.viz__track {
+  flex: 1;
+  height: 3px;
+  overflow: hidden;
+  background: var(--takt-raised);
+  border-radius: 2px;
+
+  div { height: 100%; background: var(--takt-accent); transition: width 250ms linear; }
+}
+
+.viz__controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 22px;
+}
+
+.viz__play { width: 52px; height: 52px; }
+
+.viz__close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+}
+
 /* ---------- mini player ---------- */
 
 body.is-mini {

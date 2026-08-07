@@ -41,6 +41,7 @@ const api = {
   toggleMaximize: () => ipcRenderer.send('takt:window-toggle-maximize'),
   close: () => ipcRenderer.send('takt:window-close'),
   isMaximized: (): Promise<boolean> => ipcRenderer.invoke('takt:window-is-maximized'),
+  setFullscreen: (on: boolean) => ipcRenderer.send('takt:set-fullscreen', on),
   onWindowState: (listener: (state: { isMaximized: boolean }) => void) =>
     on('takt:window-state', listener),
 
