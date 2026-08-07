@@ -112,8 +112,6 @@ export function Artists() {
 /** Header above the tracks of one album, with its cover and totals. */
 export function AlbumHeader({ albumKey: key }: { albumKey: string }) {
   const tracks = useLibrary((s) => s.tracks);
-  const previous = useLibrary((s) => s.previous);
-  const goBack = useLibrary((s) => s.goBack);
   const playNow = usePlayer((s) => s.playNow);
   const playShuffled = usePlayer((s) => s.playShuffled);
   const enqueue = usePlayer((s) => s.enqueue);
@@ -131,12 +129,6 @@ export function AlbumHeader({ albumKey: key }: { albumKey: string }) {
 
   return (
     <header className="plhead">
-      {previous && (
-        <button type="button" className="ctl plhead__back" onClick={goBack} aria-label="Back" title="Back">
-          <Icon name="back" size={18} />
-        </button>
-      )}
-
       <span className="plart" style={{ width: 92, height: 92 }}>
         {album.artwork
           ? <img src={`takt://art/${album.artwork}`} alt="" />

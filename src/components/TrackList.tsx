@@ -168,6 +168,8 @@ export function TrackList() {
 
   return (
     <div className="tracklist">
+      <BackLink />
+
       {playlist && <PlaylistHeader id={playlist.id} tracks={tracks} source={here} />}
       {view.kind === 'album' && <AlbumHeader albumKey={view.key} />}
       {view.kind === 'artist' && <SimpleHeader kind="Artist" title={view.name} tracks={tracks} source={here} />}
@@ -416,6 +418,36 @@ function Bars() {
   return <span className="bars" aria-label="Playing"><i /><i /><i /><i /></span>;
 }
 
+/**
+ * Where drilling in came from.
+ *
+ * A row of its own at the top rather than a button floating beside the header. Absolutely
+ * positioned it landed level with the Play button and read as one more action, which is
+ * the opposite of what it does. Naming the destination also means the label answers
+ * "back to what" without having to remember.
+ */
+function BackLink() {
+  const previous = useLibrary((s) => s.previous);
+  const playlists = useLibrary((s) => s.playlists);
+  const goBack = useLibrary((s) => s.goBack);
+
+  if (!previous) return null;
+
+  const label = previous.kind === 'albums' ? 'Albums'
+    : previous.kind === 'artists' ? 'Artists'
+      : previous.kind === 'recent' ? 'Recently played'
+        : previous.kind === 'playlist'
+          ? playlists.find((p) => p.id === previous.id)?.name ?? 'Playlist'
+          : 'All tracks';
+
+  return (
+    <button type="button" className="backlink" onClick={goBack}>
+      <Icon name="back" size={15} />
+      {label}
+    </button>
+  );
+}
+
 /** A column header that sorts. The arrow only appears on the column actually in effect. */
 function SortHeader({
   label,
@@ -457,19 +489,12 @@ function SimpleHeader({
   tracks: TrackInfo[];
   source: QueueSource;
 }) {
-  const goBack = useLibrary((s) => s.goBack);
-  const previous = useLibrary((s) => s.previous);
   const playNow = usePlayer((s) => s.playNow);
   const playShuffled = usePlayer((s) => s.playShuffled);
   const enqueue = usePlayer((s) => s.enqueue);
 
   return (
     <header className="plhead plhead--simple">
-      {previous && (
-        <button type="button" className="ctl plhead__back" onClick={goBack} aria-label="Back" title="Back">
-          <Icon name="back" size={18} />
-        </button>
-      )}
       <div className="plhead__text">
         <div className="plhead__kind">{kind}</div>
         <h1>{title}</h1>

@@ -389,10 +389,27 @@ body.is-resizing {
   &--simple { padding-top: 18px; }
 }
 
-.plhead__back {
-  position: absolute;
-  top: 10px;
-  left: 4px;
+/* Its own row at the top, not a control floating beside the header's action buttons. */
+.backlink {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 10px 5px 6px;
+  margin: 10px 0 -8px 8px;
+  font-size: 12px;
+  /*
+   * Without this the button inherits the body's line-height, so the text sits in a box
+   * taller than itself and centres against the icon off by a pixel or two — which is
+   * exactly enough to look like a mistake.
+   */
+  line-height: 1;
+  color: var(--takt-text-muted);
+  border-radius: 6px;
+  transition: color 120ms, background 120ms;
+
+  &:hover { color: var(--takt-text); background: var(--takt-surface-hover); }
+
+  svg { flex: none; display: block; }
 }
 
 /* The cover is the control for changing it — there is nowhere else that would live. */

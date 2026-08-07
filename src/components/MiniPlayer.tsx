@@ -35,8 +35,8 @@ export function MiniPlayer() {
 
   return (
     <div className="mini">
-      {/* The whole window drags, except the controls. */}
-      <div className="mini__art" onDoubleClick={() => window.takt.showMain()}>
+      {/* The whole window drags, except the controls. Double-click returns to the app. */}
+      <div className="mini__art" title="Double-click to show Takt" onDoubleClick={() => window.takt.showMain()}>
         {track.artwork
           ? <img src={track.artwork} alt="" />
           : <Icon name="music" size={20} />}
@@ -81,10 +81,12 @@ export function MiniPlayer() {
         </div>
       </div>
 
+      {/*
+        Close only. Getting back to the main window is a double-click on the artwork, or
+        the tray menu — a second button for it crowded a window this size for a route that
+        already existed twice over.
+      */}
       <div className="mini__actions">
-        <button type="button" className="ctl" onClick={() => window.takt.showMain()} title="Show Takt" aria-label="Show Takt">
-          <Icon name="maximize" size={13} />
-        </button>
         <button type="button" className="ctl" onClick={() => window.takt.closeMini()} title="Close" aria-label="Close mini player">
           <Icon name="close" size={14} />
         </button>
