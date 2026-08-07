@@ -1377,6 +1377,13 @@ input[type='range'] {
 
 .volume__range { width: 84px; }
 
+.volume--large {
+  gap: 8px;
+
+  .volume__range { width: 150px; }
+  .ctl { width: 34px; height: 34px; }
+}
+
 /* ---------- queue ---------- */
 
 .queue {
@@ -1941,6 +1948,7 @@ input[type='range'] {
 }
 
 .viz__art {
+  position: relative;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -1953,6 +1961,39 @@ input[type='range'] {
   box-shadow: 0 24px 60px var(--takt-shadow);
 
   img { width: 100%; height: 100%; object-fit: cover; }
+}
+
+/*
+ * The whole cover is the favourite button.
+ *
+ * Hidden until hovered in both states — only the icon differs — so the artwork is never
+ * carrying a permanent badge, and setting or clearing a favourite is the same gesture in
+ * the same place.
+ */
+.viz__fav {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 12px;
+}
+
+.viz__favHover {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  transition: opacity 140ms;
+
+  .viz__fav:hover &,
+  .viz__fav:focus-visible & { opacity: 1; }
+
+  svg { transition: transform 120ms; }
+  .viz__fav:hover:active & svg { transform: scale(0.92); }
 }
 
 .viz__title {
@@ -1968,25 +2009,26 @@ input[type='range'] {
 .viz__artist { margin-top: 6px; font-size: 16px; color: var(--takt-text-muted); }
 .viz__album { margin-top: 2px; font-size: 13px; color: var(--takt-text-faint); }
 
-.viz__bar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
+.viz__seek {
   width: 100%;
   margin-top: 28px;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--takt-text-faint);
+
+  // The thumb is hidden until hover elsewhere; here the bar is the main thing on screen
+  // and there is nothing else to keep uncluttered.
+  .seek__range::-webkit-slider-thumb { opacity: 1; }
 }
 
-.viz__track {
-  flex: 1;
-  height: 3px;
-  overflow: hidden;
-  background: var(--takt-raised);
-  border-radius: 2px;
-
-  div { height: 100%; background: var(--takt-accent); transition: width 250ms linear; }
+/*
+ * In the corner, not under the transport.
+ *
+ * Centred below the controls it sat in its own band of empty space and read as something
+ * left over. Volume is an ambient setting rather than part of the now-playing block, so it
+ * pairs with the close button in the opposite corner and leaves the centre to the music.
+ */
+.viz__volume {
+  position: absolute;
+  right: 22px;
+  bottom: 20px;
 }
 
 .viz__controls {

@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 
-import { formatTime } from '../audio/time';
 import { useLibrary } from '../state/library';
 import { usePlayer } from '../state/player';
 import { Icon } from './Icon';
+import { SeekBar } from './SeekBar';
 import { Visualizer } from './Visualizer';
+import { VolumeControl } from './VolumeControl';
 
 /**
  * The fullscreen now-playing screen.
@@ -19,8 +20,6 @@ export function NowPlayingScreen({ onClose }: { onClose: () => void }) {
   const toggleFavourite = useLibrary((s) => s.toggleFavourite);
 
   const isPlaying = usePlayer((s) => s.isPlaying);
-  const position = usePlayer((s) => s.position);
-  const duration = usePlayer((s) => s.duration);
   const toggle = usePlayer((s) => s.toggle);
   const next = usePlayer((s) => s.next);
   const previous = usePlayer((s) => s.previous);
@@ -58,8 +57,6 @@ export function NowPlayingScreen({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  const progress = duration ? (position / duration) * 100 : 0;
-
   return (
     <div className="viz">
       <Visualizer active />
@@ -69,17 +66,48 @@ export function NowPlayingScreen({ onClose }: { onClose: () => void }) {
           {track?.artwork
             ? <img src={`takt://art/${track.artwork}`} alt="" />
             : <Icon name="music" size={64} />}
+
+          {/*
+            On the artwork rather than in the transport row.
+
+            A heart among the playback controls competes with them for a glance; over the
+            cover it is next to the thing it refers to, and stays out of the way until the
+            pointer is already there. A set favourite stays visible regardless — that is
+            the state worth seeing without hunting for it.
+          */}
+          {track && (
+            <button
+              type="button"
+              className="viz__fav"
+              aria-pressed={Boolean(track.favourite)}
+              aria-label={track.favourite ? 'Remove from favourites' : 'Add to favourites'}
+              title={track.favourite ? 'Remove from favourites' : 'Add to favourites'}
+              onClick={() => toggleFavourite([track.id])}
+            >
+              {/*
+                The whole cover is the target — a hover state reacting to a 40px corner is
+                a worse thing to aim at than the picture it sits on.
+
+                Hidden until hovered whether or not it is set; only the icon differs, so
+                the artwork is never covered by a badge and the two states behave alike.
+              */}
+              <span className="viz__favHover">
+                <Icon name={track.favourite ? 'heartFull' : 'heart'} size={54} />
+              </span>
+            </button>
+          )}
         </div>
 
         <div className="viz__title">{track?.title ?? 'Nothing playing'}</div>
         <div className="viz__artist">{track?.artist ?? ''}</div>
         {track?.album && <div className="viz__album">{track.album}</div>}
 
-        <div className="viz__bar">
-          <span>{formatTime(position)}</span>
-          <div className="viz__track"><div style={{ width: `${progress}%` }} /></div>
-          <span>{formatTime(duration)}</span>
-        </div>
+        {/*
+          The same seek bar as the player bar, not a second one. It was a plain progress
+          div here, which looked identical and did nothing when clicked — and it already
+          carries dragging, click-to-type and the waveform.
+        */}
+        <div className="viz__seek"><SeekBar /></div>
 
         <div className="viz__controls">
           {/* The same set as the player bar, which is hidden behind this. */}
@@ -114,20 +142,11 @@ export function NowPlayingScreen({ onClose }: { onClose: () => void }) {
             <Icon name="repeat" size={20} />
             {repeat === 'track' && <span className="ctl__badge">1</span>}
           </button>
-
-          {track && (
-            <button
-              type="button"
-              className={`ctl ${track.favourite ? 'ctl--on' : ''}`}
-              aria-pressed={Boolean(track.favourite)}
-              aria-label={track.favourite ? 'Remove from favourites' : 'Add to favourites'}
-              onClick={() => toggleFavourite([track.id])}
-            >
-              <Icon name={track.favourite ? 'heartFull' : 'heart'} size={20} />
-            </button>
-          )}
         </div>
+
       </div>
+
+      <div className="viz__volume"><VolumeControl size="large" /></div>
 
       <button type="button" className="ctl viz__close" onClick={onClose} title="Exit fullscreen (Esc)" aria-label="Exit fullscreen">
         <Icon name="collapse" size={18} />

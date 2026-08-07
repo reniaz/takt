@@ -3,6 +3,7 @@ import { currentTrack, usePlayer } from '../state/player';
 import { Icon } from './Icon';
 import { SeekBar } from './SeekBar';
 import { SleepTimer } from './SleepTimer';
+import { VolumeControl } from './VolumeControl';
 
 export function PlayerBar({
   onToggleQueue,
@@ -158,7 +159,15 @@ export function PlayerBar({
         <button
           type="button"
           className="ctl"
-          onClick={onOpenFullscreen}
+          /*
+           * Blurred on the way out.
+           *
+           * Clicking focuses the button, and when the overlay above it closes Chromium
+           * re-evaluates focus and decides the ring is warranted — so a click left an
+           * outline sitting around the button afterwards. Keyboard users are unaffected:
+           * Enter still activates it, and Tab resumes from the document.
+           */
+          onClick={(e) => { e.currentTarget.blur(); onOpenFullscreen(); }}
           disabled={!hasQueue}
           title="Fullscreen visualizer (F)"
           aria-label="Fullscreen visualizer"
@@ -170,36 +179,3 @@ export function PlayerBar({
   );
 }
 
-function VolumeControl() {
-  const volume = usePlayer((s) => s.volume);
-  const muted = usePlayer((s) => s.muted);
-  const setVolume = usePlayer((s) => s.setVolume);
-  const toggleMute = usePlayer((s) => s.toggleMute);
-  const nudgeVolume = usePlayer((s) => s.nudgeVolume);
-
-  const level = muted ? 0 : volume;
-  const icon = level === 0 ? 'volumeMuted' : level < 0.5 ? 'volumeLow' : 'volume';
-
-  return (
-    <div
-      className="volume"
-      // Scrolling over a volume control is the one gesture everyone tries first.
-      onWheel={(e) => nudgeVolume(e.deltaY < 0 ? 0.05 : -0.05)}
-    >
-      <button type="button" className="ctl" onClick={toggleMute} title="Mute (M)">
-        <Icon name={icon} size={18} />
-      </button>
-      <input
-        className="volume__range"
-        type="range"
-        min={0}
-        max={1}
-        step={0.01}
-        value={level}
-        aria-label="Volume"
-        onChange={(e) => setVolume(Number(e.target.value))}
-        style={{ '--progress': `${level * 100}%` } as React.CSSProperties}
-      />
-    </div>
-  );
-}
