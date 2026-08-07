@@ -18,8 +18,9 @@ export function SeekBar() {
   const seek = usePlayer((s) => s.seek);
   const hasTrack = usePlayer((s) => s.index >= 0);
   const trackId = usePlayer((s) => s.queue[s.index]);
+  const waveformEnabled = usePlayer((s) => s.waveform);
 
-  const peaks = useWaveform(trackId);
+  const peaks = useWaveform(trackId, waveformEnabled);
 
   const [dragging, setDragging] = useState<number | undefined>(undefined);
   const [editing, setEditing] = useState(false);

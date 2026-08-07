@@ -111,7 +111,14 @@ function updateTray(main: BrowserWindow, send: (command: PlayerCommand) => void)
 function createMini() {
   const window = new BrowserWindow({
     width: 340,
-    height: 116,
+    /*
+     * Sized to the content, not rounded up.
+     *
+     * The layout centres itself in whatever height it is given, so any slack shows as a
+     * band of empty surface above and below — which reads as a stray top bar rather than
+     * as padding. Artwork plus its padding is what decides this number.
+     */
+    height: 94,
     resizable: false,
     frame: false,
     alwaysOnTop: true,

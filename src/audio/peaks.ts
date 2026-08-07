@@ -10,6 +10,8 @@ export function reducePeaks(samples: Float32Array, buckets: number) {
   if (!samples.length || buckets <= 0) return peaks;
 
   const per = samples.length / buckets;
+  const levels = new Float32Array(buckets);
+  let loudest = 0;
 
   for (let i = 0; i < buckets; i += 1) {
     const start = Math.floor(i * per);
@@ -18,21 +20,36 @@ export function reducePeaks(samples: Float32Array, buckets: number) {
     const end = Math.max(start + 1, Math.min(samples.length, Math.floor((i + 1) * per)));
 
     /*
-     * The largest absolute sample in the bucket, not the average.
+     * RMS, not the peak.
      *
-     * A waveform swings either side of zero, so an average over thousands of samples tends
-     * toward zero and draws every track as a flat line however loud it is. The peak is
-     * what makes the shape recognisable.
+     * The peak is the obvious choice and draws almost anything modern as a solid block:
+     * mastering limits the loudest sample to just under full scale, and after that nearly
+     * every bucket contains one. RMS measures how much energy is actually in the bucket,
+     * so a quiet intro, a dense chorus and a fade still look different from each other.
      */
-    let max = 0;
+    let sum = 0;
     for (let s = start; s < end; s += 1) {
       const value = samples[s] as number;
-      const magnitude = value < 0 ? -value : value;
-      if (magnitude > max) max = magnitude;
+      sum += value * value;
     }
 
-    // Clamped: floating-point sample values can exceed 1 without being an error.
-    peaks[i] = Math.min(255, Math.round(max * 255));
+    const rms = Math.sqrt(sum / (end - start));
+    levels[i] = rms;
+    if (rms > loudest) loudest = rms;
+  }
+
+  // Silence has no shape, and dividing by its level would be dividing by zero.
+  if (loudest === 0) return peaks;
+
+  /*
+   * Scaled against the track's own loudest moment rather than against full scale.
+   *
+   * RMS of even a loud master sits around a third of full scale, so drawing it absolutely
+   * would leave every waveform a third of the height of the bar. What the picture is for
+   * is the shape of *this* track, so this track's peak defines the top of the bar.
+   */
+  for (let i = 0; i < buckets; i += 1) {
+    peaks[i] = Math.min(255, Math.round(((levels[i] as number) / loudest) * 255));
   }
 
   return peaks;

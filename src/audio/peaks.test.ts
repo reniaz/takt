@@ -14,33 +14,49 @@ describe('reducePeaks', () => {
     expect(reducePeaks(sine(10_000), 480)).toHaveLength(480);
   });
 
-  it('takes the peak, not the average', () => {
-    /*
-     * The distinction the whole drawing depends on: a waveform swings either side of zero,
-     * so an average tends toward zero and would draw every track as a flat line.
-     */
-    const peaks = reducePeaks(sine(10_000), 100);
-    expect(Math.max(...peaks)).toBeGreaterThan(240);
+  it('fills the bar, scaling against the track own loudest moment', () => {
+    // RMS of even a loud master sits near a third of full scale; drawn absolutely, every
+    // waveform would be a third of the height available.
+    expect(Math.max(...reducePeaks(sine(10_000), 100))).toBe(255);
   });
 
-  it('scales with amplitude, so a quiet track looks quiet', () => {
-    const loud = Math.max(...reducePeaks(sine(10_000, 1), 100));
-    const quiet = Math.max(...reducePeaks(sine(10_000, 0.25), 100));
-    expect(quiet).toBeLessThan(loud / 3);
+  it('draws the same shape however loud the track is', () => {
+    /*
+     * The picture is of *this* track's structure, not of its level — which the volume
+     * control and ReplayGain already deal with. A quiet recording gets the same shape as a
+     * loud one rather than a flat line near the bottom.
+     */
+    const loud = reducePeaks(sine(10_000, 1), 60);
+    const quiet = reducePeaks(sine(10_000, 0.05), 60);
+    expect([...quiet]).toEqual([...loud]);
+  });
+
+  it('shows dynamics that a peak reading would flatten', () => {
+    /*
+     * The reason for RMS. Limiting puts a near-full-scale sample in almost every bucket of
+     * a modern master, so peak-per-bucket draws a solid block; the energy in the bucket
+     * still differs, and that is what makes a shape.
+     */
+    const samples = new Float32Array(10_000);
+    for (let i = 0; i < 10_000; i += 1) {
+      // Dense in the first half, sparse in the second — same peak throughout.
+      const dense = i < 5_000;
+      samples[i] = dense || i % 8 === 0 ? (i % 2 ? 1 : -1) : 0;
+    }
+
+    const peaks = reducePeaks(samples, 10);
+    const first = Math.max(...peaks.slice(0, 5));
+    const second = Math.max(...peaks.slice(5));
+    expect(second).toBeLessThan(first / 2);
   });
 
   it('reads silence as zero', () => {
     expect([...reducePeaks(new Float32Array(5_000), 50)].every((p) => p === 0)).toBe(true);
   });
 
-  it('treats negative swings as amplitude, not as nothing', () => {
-    const samples = new Float32Array([-1, -0.5, -0.9, -0.2]);
+  it('treats negative swings as energy, not as nothing', () => {
+    const samples = new Float32Array([-1, -1, -1, -1]);
     expect(reducePeaks(samples, 1)[0]).toBe(255);
-  });
-
-  it('clamps samples above full scale rather than wrapping', () => {
-    // Floating-point audio can exceed 1 without being an error.
-    expect(reducePeaks(new Float32Array([4]), 1)[0]).toBe(255);
   });
 
   it('fills every bucket when there are more buckets than samples', () => {
@@ -57,7 +73,6 @@ describe('reducePeaks', () => {
   });
 
   it('locates a loud passage in the right part of the track', () => {
-    // Quiet first half, loud second: the shape has to end up where the audio was.
     const samples = new Float32Array(1000);
     for (let i = 500; i < 1000; i += 1) samples[i] = 1;
 

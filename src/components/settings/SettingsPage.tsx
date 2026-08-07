@@ -103,6 +103,8 @@ function Playback() {
   const crossfade = usePlayer((s) => s.crossfade);
   const setGapless = usePlayer((s) => s.setGapless);
   const setCrossfade = usePlayer((s) => s.setCrossfade);
+  const waveform = usePlayer((s) => s.waveform);
+  const setWaveform = usePlayer((s) => s.setWaveform);
 
   return (
     <section className="settings__section">
@@ -115,6 +117,16 @@ function Playback() {
         <label className="settings__switch settings__switch--inline">
           <input type="checkbox" checked={gapless} onChange={(e) => setGapless(e.target.checked)} />
           <span>{gapless ? 'On' : 'Off'}</span>
+        </label>
+      </Row>
+
+      <Row
+        label="Waveform seek bar"
+        hint="Draws the shape of the track behind the seek bar. Off by default: it needs the whole file decoded once, which is real work on a slow disk. The result is cached, so a track only pays for it the first time."
+      >
+        <label className="settings__switch settings__switch--inline">
+          <input type="checkbox" checked={waveform} onChange={(e) => setWaveform(e.target.checked)} />
+          <span>{waveform ? 'On' : 'Off'}</span>
         </label>
       </Row>
 

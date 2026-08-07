@@ -61,12 +61,17 @@ async function computePeaks(url: string, signal: AbortSignal) {
   });
 }
 
-export function useWaveform(trackId: string | undefined) {
+/**
+ * @param enabled off by default in settings — drawing one costs a full decode, which is
+ * real work on a slow disk. Passed in rather than checked inside, so the caller keeps a
+ * hook call in the same place on every render.
+ */
+export function useWaveform(trackId: string | undefined, enabled: boolean) {
   const [peaks, setPeaks] = useState<Uint8Array | undefined>(undefined);
 
   useEffect(() => {
     setPeaks(undefined);
-    if (!trackId) return undefined;
+    if (!trackId || !enabled) return undefined;
 
     // Aborted when the track changes, so a slow decode cannot land on the wrong seek bar.
     const controller = new AbortController();
@@ -95,7 +100,7 @@ export function useWaveform(trackId: string | undefined) {
     })();
 
     return () => controller.abort();
-  }, [trackId]);
+  }, [trackId, enabled]);
 
   return peaks;
 }

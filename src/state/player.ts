@@ -104,6 +104,7 @@ type State = {
 
   gapless: boolean;
   crossfade: number;
+  waveform: boolean;
 
   sidebarWidth: number;
 
@@ -146,6 +147,7 @@ type Actions = {
   setReplayGainUntagged: (db: number) => void;
   setGapless: (on: boolean) => void;
   setCrossfade: (seconds: number) => void;
+  setWaveform: (on: boolean) => void;
   setSidebarWidth: (px: number) => void;
   /** Rebuilds the queue from persisted ids once the library has loaded. */
   restoreQueue: (tracks: Map<string, TrackInfo>) => void;
@@ -188,6 +190,7 @@ export const usePlayer = create<State & Actions>((set, get) => ({
 
   gapless: saved.gapless,
   crossfade: saved.crossfade,
+  waveform: saved.waveform,
 
   sidebarWidth: saved.sidebarWidth,
 
@@ -555,6 +558,8 @@ export const usePlayer = create<State & Actions>((set, get) => ({
 
   // Clamped here rather than only in the drag handler, so a settings file edited by hand
   // cannot leave the sidebar wider than the window.
+  setWaveform: (waveform) => set({ waveform }),
+
   setSidebarWidth: (px) => set({ sidebarWidth: Math.max(170, Math.min(460, Math.round(px))) }),
 
   setTheme: (themeId) => set({ themeId }),
@@ -686,6 +691,7 @@ usePlayer.subscribe((state) => {
     replayGainUntagged: state.replayGainUntagged,
     gapless: state.gapless,
     crossfade: state.crossfade,
+    waveform: state.waveform,
     sidebarWidth: state.sidebarWidth,
     queue: state.queue,
     queueIndex: state.index,

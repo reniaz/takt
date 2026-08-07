@@ -40,6 +40,7 @@ export type Persisted = {
 
   gapless: boolean;
   crossfade: number;
+  waveform: boolean;
 
   sidebarWidth: number;
 
@@ -80,6 +81,13 @@ export const DEFAULTS: Persisted = {
   // unless it is asked for.
   gapless: true,
   crossfade: 0,
+  /*
+   * Off by default.
+   *
+   * Drawing one costs a full decode of the track, which is real work on a slow disk and
+   * shows as a pause before the shape appears. Worth opting into, not worth imposing.
+   */
+  waveform: false,
 
   sidebarWidth: 220,
 
