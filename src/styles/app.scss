@@ -932,11 +932,20 @@ input[type='range'] {
   vector-effect: non-scaling-stroke;
 }
 
-.eqcurve__handle {
+/*
+ * Targeted by class, not as "any circle inside the handle".
+ *
+ * A descendant selector here also matches the invisible hit circle below, and beats that
+ * element's own single-class rule on specificity — so the whole 22-unit target got painted
+ * accent and the dots looked enormous no matter what radius they were given.
+ */
+.eqcurve__dot {
   // No outline at this size — a stroke as thick as the dot swallows it.
-  circle { fill: var(--takt-accent); stroke: none; transition: r 100ms; }
+  fill: var(--takt-accent);
+  stroke: none;
+  transition: r 100ms;
 
-  &.is-active circle { fill: var(--takt-accent-hover); }
+  .is-active > & { fill: var(--takt-accent-hover); }
 }
 
 .eqcurve__stem {

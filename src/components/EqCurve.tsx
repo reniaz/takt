@@ -27,6 +27,19 @@ const FINE_STEP = 0.1;
 const GRID_DB = [-12, -6, 0, 6, 12];
 const GRID_HZ = [100, 1000, 10000];
 
+/**
+ * Handle sizes, in screen pixels.
+ *
+ * Pixels rather than viewBox units because the SVG is stretched with
+ * `preserveAspectRatio="none"`, which scales x and y by different amounts — a `<circle>`
+ * comes out an ellipse, and the same radius renders at one size in the compact popover and
+ * another in the taller settings panel. Converting a pixel target into per-axis radii on an
+ * `<ellipse>` makes the handle the same round dot everywhere.
+ */
+const DOT_PX = 3.5;
+const DOT_ACTIVE_PX = 5;
+const HIT_PX = 13;
+
 type Props = {
   gains: readonly number[];
   onChange: (gains: number[]) => void;
@@ -49,6 +62,7 @@ export function EqCurve({ gains, onChange, disabled = false, height = 150, label
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragging, setDragging] = useState(false);
   const [hovered, setHovered] = useState<number | undefined>(undefined);
+  const [size, setSize] = useState({ width: 1000, height: 300 });
 
   // Viewport units. The SVG scales to its container, so these are just a coordinate space.
   const W = 1000;
@@ -58,11 +72,46 @@ export function EqCurve({ gains, onChange, disabled = false, height = 150, label
   const frequencies = useMemo(() => probeFrequencies(PROBES, MIN_HZ, MAX_HZ), []);
   const curve = useMemo(() => responseDb(gains, frequencies), [gains, frequencies]);
 
+  /*
+   * The handles sit on the curve, not at their own band's gain.
+   *
+   * Those are not the same number. Bands overlap, so the response at 500 Hz includes what
+   * the 1 kHz band is doing — a band set to +6 can read +7 on the curve. Placing the dot at
+   * the band's own value leaves it visibly off the line it is supposed to be a handle for,
+   * which reads as a rendering bug. The exact value each band is set to is on the axis
+   * below, where a number belongs.
+   */
+  const bandFrequencies = useMemo(
+    () => Float32Array.from(BANDS.map((b) => b.frequency)) as Float32Array<ArrayBuffer>,
+    [],
+  );
+  const bandResponse = useMemo(() => responseDb(gains, bandFrequencies), [gains, bandFrequencies]);
+
   const dbToY = (db: number) => padY + ((MAX_GAIN_DB - db) / (MAX_GAIN_DB * 2)) * (H - padY * 2);
   const yToDb = (y: number) => MAX_GAIN_DB - ((y - padY) / (H - padY * 2)) * (MAX_GAIN_DB * 2);
   const hzToX = (hz: number) => toX(hz) * W;
 
   const bandX = useMemo(() => BANDS.map((b) => hzToX(b.frequency)), []);
+
+  // Tracked so a pixel size can be expressed in viewBox units. The panel resizes with the
+  // window, so one measurement at mount is not enough.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return undefined;
+
+    const measure = () => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width && rect.height) setSize({ width: rect.width, height: rect.height });
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+
+  /** A radius in screen pixels, as viewBox units on each axis. */
+  const radii = (px: number) => ({ rx: (px * W) / size.width, ry: (px * H) / size.height });
 
   const path = useMemo(() => {
     const points = Array.from(curve, (db, i) => {
@@ -185,26 +234,34 @@ export function EqCurve({ gains, onChange, disabled = false, height = 150, label
         {BANDS.map((band, i) => {
           const gain = gains[i] ?? 0;
           const active = hovered === i;
+          // Clamped the same way the drawn curve is, so a handle cannot sit off the top of
+          // the panel while the line it belongs to is flat against the edge.
+          const shown = Math.max(-MAX_GAIN_DB, Math.min(MAX_GAIN_DB, bandResponse[i] ?? gain));
+          const y = dbToY(shown);
 
           return (
             <g key={band.frequency} className={`eqcurve__handle ${active ? 'is-active' : ''}`}>
-              <line className="eqcurve__stem" x1={bandX[i]} x2={bandX[i]} y1={dbToY(0)} y2={dbToY(gain)} />
+              <line className="eqcurve__stem" x1={bandX[i]} x2={bandX[i]} y1={dbToY(0)} y2={y} />
               {/*
                 Small on purpose. The dot marks where a band sits; it is not the target —
-                the whole surface is, and the invisible hit circle below is 22 units wide.
-                A large dot only covers the curve it is supposed to annotate.
+                the whole surface is, and the invisible hit circle below is far larger.
               */}
-              <circle cx={bandX[i]} cy={dbToY(gain)} r={active ? 3 : 2} />
+              <ellipse
+                className="eqcurve__dot"
+                cx={bandX[i]}
+                cy={y}
+                {...radii(active ? DOT_ACTIVE_PX : DOT_PX)}
+              />
               {/*
                 A focusable, keyboard-operable proxy for each handle. The pointer path never
                 touches it; it exists so the control is reachable without a mouse, which a
                 bare <svg> with pointer handlers is not.
               */}
-              <circle
+              <ellipse
                 className="eqcurve__hit"
                 cx={bandX[i]}
-                cy={dbToY(gain)}
-                r={22}
+                cy={y}
+                {...radii(HIT_PX)}
                 tabIndex={disabled ? -1 : 0}
                 role="slider"
                 aria-label={`${band.label} hertz`}
