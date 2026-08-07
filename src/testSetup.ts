@@ -10,6 +10,15 @@ import type { TaktApi } from '../electron/preload';
  * a check in production code for a state that cannot happen; supplying the bridge here
  * models reality instead.
  */
+/*
+ * jsdom has no media pipeline, so `load()` logs "Not implemented" for every call the
+ * engine makes. The queue logic under test does not depend on it; stubbing keeps the
+ * output readable.
+ */
+HTMLMediaElement.prototype.load = () => {};
+HTMLMediaElement.prototype.play = () => Promise.resolve();
+HTMLMediaElement.prototype.pause = () => {};
+
 const noop = () => () => {};
 
 const stub = {

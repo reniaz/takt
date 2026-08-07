@@ -194,7 +194,7 @@ export function EqCurve({ gains, onChange, disabled = false, height = 150, label
                 the whole surface is, and the invisible hit circle below is 22 units wide.
                 A large dot only covers the curve it is supposed to annotate.
               */}
-              <circle cx={bandX[i]} cy={dbToY(gain)} r={active ? 6 : 4.5} />
+              <circle cx={bandX[i]} cy={dbToY(gain)} r={active ? 3 : 2} />
               {/*
                 A focusable, keyboard-operable proxy for each handle. The pointer path never
                 touches it; it exists so the control is reachable without a mouse, which a

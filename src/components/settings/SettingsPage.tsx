@@ -99,10 +99,43 @@ function Playback() {
   const setMode = usePlayer((s) => s.setReplayGain);
   const setPreamp = usePlayer((s) => s.setReplayGainPreamp);
   const setUntagged = usePlayer((s) => s.setReplayGainUntagged);
+  const gapless = usePlayer((s) => s.gapless);
+  const crossfade = usePlayer((s) => s.crossfade);
+  const setGapless = usePlayer((s) => s.setGapless);
+  const setCrossfade = usePlayer((s) => s.setCrossfade);
 
   return (
     <section className="settings__section">
       <h2>Playback</h2>
+
+      <Row
+        label="Gapless playback"
+        hint="Buffers the next track while the current one is still playing, so albums recorded to run continuously do so. MP3 keeps a few milliseconds of encoder padding; FLAC, Opus and WAV are seamless."
+      >
+        <label className="settings__switch settings__switch--inline">
+          <input type="checkbox" checked={gapless} onChange={(e) => setGapless(e.target.checked)} />
+          <span>{gapless ? 'On' : 'Off'}</span>
+        </label>
+      </Row>
+
+      <Row
+        label="Crossfade"
+        hint="Overlaps the end of one track with the start of the next. Right for shuffled listening, wrong for a continuous album — leave it at zero for pure gapless."
+        value={crossfade === 0 ? 'Off' : `${crossfade.toFixed(1)} s`}
+      >
+        <input
+          type="range"
+          min={0}
+          max={12}
+          step={0.5}
+          value={crossfade}
+          aria-label="Crossfade seconds"
+          onChange={(e) => setCrossfade(Number(e.target.value))}
+          style={{ '--progress': `${(crossfade / 12) * 100}%` } as React.CSSProperties}
+        />
+      </Row>
+
+      <h3>Volume normalization</h3>
       <p className="settings__note">
         Volume normalization uses the ReplayGain tags already in your files, so a quiet
         master and a loud one play at the same perceived level without touching the volume

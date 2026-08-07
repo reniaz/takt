@@ -38,6 +38,9 @@ export type Persisted = {
   replayGainPreamp: number;
   replayGainUntagged: number;
 
+  gapless: boolean;
+  crossfade: number;
+
   /**
    * The queue, as track ids, plus where playback had got to.
    *
@@ -68,6 +71,11 @@ export const DEFAULTS: Persisted = {
   replayGain: 'off',
   replayGainPreamp: 0,
   replayGainUntagged: 0,
+
+  // Gapless on, crossfade off: continuous albums play as recorded, and nothing overlaps
+  // unless it is asked for.
+  gapless: true,
+  crossfade: 0,
 
   queue: [],
   queueIndex: -1,

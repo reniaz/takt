@@ -19,6 +19,7 @@ beforeEach(() => {
   vi.spyOn(engine, 'play').mockResolvedValue(undefined);
   vi.spyOn(engine, 'pause').mockImplementation(() => {});
   vi.spyOn(engine, 'seek').mockImplementation(() => {});
+  vi.spyOn(engine, 'setNext').mockImplementation(() => {});
 
   usePlayer.setState({
     tracks: new Map(),
@@ -28,6 +29,8 @@ beforeEach(() => {
     isPlaying: false,
     shuffle: false,
     repeat: 'off',
+    gapless: true,
+    crossfade: 0,
   });
 });
 
@@ -120,6 +123,66 @@ describe('queue actions', () => {
     usePlayer.getState().enqueue([TRACKS[0]!, TRACKS[4]!]);
 
     expect(ids()).toEqual(['t1', 't2', 't3', 't5']);
+  });
+});
+
+describe('gapless handover', () => {
+  const armed = () => (engine.setNext as unknown as { mock: { calls: unknown[][] } }).mock.calls.at(-1)?.[0] as
+    { src: string } | undefined;
+
+  it('arms the next track once something is playing', () => {
+    usePlayer.getState().addTracks(TRACKS);
+    usePlayer.getState().playAt(0);
+
+    expect(armed()?.src).toBe('takt://media/t2');
+  });
+
+  it('re-arms when the queue is reordered under the cursor', () => {
+    usePlayer.getState().addTracks(TRACKS);
+    usePlayer.getState().playAt(0);
+
+    usePlayer.getState().playNext([TRACKS[4]!]);
+
+    expect(armed()?.src).toBe('takt://media/t5');
+  });
+
+  it('arms nothing at the end of the queue when not repeating', () => {
+    usePlayer.getState().addTracks(TRACKS);
+    usePlayer.getState().playAt(5);
+
+    expect(armed()).toBeUndefined();
+  });
+
+  it('wraps to the start when repeating the queue', () => {
+    usePlayer.getState().addTracks(TRACKS);
+    usePlayer.setState({ repeat: 'queue' });
+    usePlayer.getState().playAt(5);
+
+    expect(armed()?.src).toBe('takt://media/t1');
+  });
+
+  it('arms the same track again on repeat-one, for a seamless loop', () => {
+    usePlayer.getState().addTracks(TRACKS);
+    usePlayer.setState({ repeat: 'track' });
+    usePlayer.getState().playAt(2);
+
+    expect(armed()?.src).toBe('takt://media/t3');
+  });
+
+  it('arms nothing when gapless is off and there is no crossfade', () => {
+    usePlayer.setState({ gapless: false, crossfade: 0 });
+    usePlayer.getState().addTracks(TRACKS);
+    usePlayer.getState().playAt(0);
+
+    expect(armed()).toBeUndefined();
+  });
+
+  it('arms even with gapless off, once a crossfade is set', () => {
+    usePlayer.setState({ gapless: false, crossfade: 4 });
+    usePlayer.getState().addTracks(TRACKS);
+    usePlayer.getState().playAt(0);
+
+    expect(armed()?.src).toBe('takt://media/t2');
   });
 });
 

@@ -63,6 +63,9 @@ type State = {
   replayGainPreamp: number;
   replayGainUntagged: number;
 
+  gapless: boolean;
+  crossfade: number;
+
   themeId: string;
   brightness: number;
 };
@@ -97,6 +100,8 @@ type Actions = {
   setReplayGain: (mode: ReplayGainMode) => void;
   setReplayGainPreamp: (db: number) => void;
   setReplayGainUntagged: (db: number) => void;
+  setGapless: (on: boolean) => void;
+  setCrossfade: (seconds: number) => void;
   /** Rebuilds the queue from persisted ids once the library has loaded. */
   restoreQueue: (tracks: Map<string, TrackInfo>) => void;
   setTheme: (id: string) => void;
@@ -134,6 +139,9 @@ export const usePlayer = create<State & Actions>((set, get) => ({
   replayGain: saved.replayGain,
   replayGainPreamp: saved.replayGainPreamp,
   replayGainUntagged: saved.replayGainUntagged,
+
+  gapless: saved.gapless,
+  crossfade: saved.crossfade,
 
   themeId: saved.themeId,
   brightness: saved.brightness,
@@ -206,13 +214,11 @@ export const usePlayer = create<State & Actions>((set, get) => ({
 
     set({ index, error: undefined, position: 0, duration: track.duration ?? 0 });
 
-    // Set before loading, so the first audible moment is already at the right level rather
-    // than jumping once the gain catches up.
-    engine.setReplayGain(gainFor(track, get().replayGain, get().replayGainPreamp, get().replayGainUntagged));
-
-    engine.load(`takt://media/${track.id}`);
+    engine.load(`takt://media/${track.id}`, gainFor(track, get().replayGain, get().replayGainPreamp, get().replayGainUntagged));
     void engine.play();
     window.takt.notePlayed(track.id);
+
+    armNext(get());
   },
 
   playId: (id) => {
@@ -388,6 +394,23 @@ export const usePlayer = create<State & Actions>((set, get) => ({
     set({ customPresets: get().customPresets.filter((p) => p.id !== id) });
   },
 
+  /*
+   * Gapless is expressed entirely by whether the engine is given a next track: with it off
+   * and no crossfade, nothing is armed and the plain `ended` event drives the queue. The
+   * engine has no separate switch to set.
+   */
+  setGapless: (gapless) => {
+    set({ gapless });
+    armNext(get());
+  },
+
+  setCrossfade: (seconds) => {
+    const crossfade = Math.max(0, Math.min(12, seconds));
+    set({ crossfade });
+    engine.setCrossfade(crossfade);
+    armNext(get());
+  },
+
   setReplayGain: (replayGain) => {
     set({ replayGain });
     applyReplayGain(get());
@@ -442,6 +465,46 @@ function applyReplayGain(state: State) {
   engine.setReplayGain(gainFor(track, state.replayGain, state.replayGainPreamp, state.replayGainUntagged));
 }
 
+/** The track the queue would move to on its own, or nothing if it would stop. */
+function upcoming(state: State) {
+  const { queue, index, repeat } = state;
+  if (!queue.length || index < 0) return undefined;
+
+  // Repeat-one plays the same file again; handing it to the other deck is exactly right,
+  // and gives a seamless loop rather than a seek back to zero.
+  if (repeat === 'track') return state.tracks.get(queue[index] as string);
+
+  const at = index + 1;
+  if (at < queue.length) return state.tracks.get(queue[at] as string);
+
+  return repeat === 'queue' ? state.tracks.get(queue[0] as string) : undefined;
+}
+
+/**
+ * Tells the engine what follows, so it can buffer it before the current track ends.
+ *
+ * Called after anything that changes what comes next — the queue, the cursor, the repeat
+ * mode, or the gapless settings. With both gapless and crossfade off there is nothing to
+ * prepare, and the plain `ended` event drives the queue as before.
+ */
+function armNext(state: State) {
+  if (!state.gapless && state.crossfade === 0) {
+    engine.setNext(undefined);
+    return;
+  }
+
+  const track = upcoming(state);
+  if (!track) {
+    engine.setNext(undefined);
+    return;
+  }
+
+  engine.setNext({
+    src: `takt://media/${track.id}`,
+    replayGainDb: gainFor(track, state.replayGain, state.replayGainPreamp, state.replayGainUntagged),
+  });
+}
+
 /* Engine -> store. Registered once, at module load. */
 
 engine.on('time', (position, duration) => usePlayer.setState({ position, duration }));
@@ -449,13 +512,48 @@ engine.on('playing', (isPlaying) => usePlayer.setState({ isPlaying }));
 engine.on('error', (error) => usePlayer.setState({ error, isPlaying: false }));
 engine.on('ended', () => usePlayer.getState().next());
 
+/*
+ * The engine handed over to the preloaded deck by itself.
+ *
+ * The audio has already moved on, so this only catches the queue up — calling `playAt`
+ * here would reload the file that is currently playing and reintroduce the very gap the
+ * handover exists to avoid.
+ */
+engine.on('advanced', () => {
+  const state = usePlayer.getState();
+  const { queue, index, repeat } = state;
+
+  const at = repeat === 'track'
+    ? index
+    : index + 1 < queue.length ? index + 1 : 0;
+
+  const id = queue[at];
+  const track = id ? state.tracks.get(id) : undefined;
+
+  usePlayer.setState({ index: at, position: 0, duration: track?.duration ?? 0, error: undefined });
+  if (id) window.takt.notePlayed(id);
+
+  armNext(usePlayer.getState());
+});
+
 /* Restore what was saved, so the first sound matches the last session. */
 {
   const initial = usePlayer.getState();
   engine.setVolume(initial.muted ? 0 : initial.volume);
   engine.setEqGains(initial.eqEnabled ? initial.eqGains : FLAT);
   engine.setPreamp(initial.eqEnabled ? effectivePreamp(initial) : 0);
+  engine.setCrossfade(initial.crossfade);
 }
+
+/*
+ * Anything that changes what plays next has to re-arm the engine, and there are enough
+ * such actions that doing it inside each one would eventually miss one. Subscribing to the
+ * queue shape catches them all; `armNext` is cheap and ignores a repeat call.
+ */
+usePlayer.subscribe((state, previous) => {
+  if (state.queue === previous.queue && state.index === previous.index && state.repeat === previous.repeat) return;
+  armNext(state);
+});
 
 /*
  * Store -> disk.
@@ -481,6 +579,8 @@ usePlayer.subscribe((state) => {
     replayGain: state.replayGain,
     replayGainPreamp: state.replayGainPreamp,
     replayGainUntagged: state.replayGainUntagged,
+    gapless: state.gapless,
+    crossfade: state.crossfade,
     queue: state.queue,
     queueIndex: state.index,
     // Rounded: `position` changes several times a second, and storing the exact float

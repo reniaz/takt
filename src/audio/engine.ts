@@ -3,80 +3,140 @@ import { BAND_Q, BANDS, dbToGain, FLAT } from './eq';
 /**
  * The playback graph.
  *
- *   <audio> -> source -> preGain -> [ 10 biquads ] -> master -> analyser -> destination
+ *   deck A: <audio> -> source -> rgGain -> fadeGain -.
+ *                                                     >- preGain -> [10 biquads] -> master -> analyser -> out
+ *   deck B: <audio> -> source -> rgGain -> fadeGain -'
  *
- * `preGain` is where ReplayGain and the EQ preamp land, ahead of the filters, so neither
- * changes the shape of the EQ curve. `master` is volume, after the filters, so turning it
- * down never alters the tone.
+ * Two decks, because gapless and crossfade both need the next track decoded and running
+ * before the current one stops. One element cannot do that: changing `src` tears down the
+ * decoder, and whatever buffer was in flight goes with it.
  *
- * The filter chain exists from the start even when every band is flat. A flat biquad is
- * transparent and costs nothing measurable, and building it up front means enabling the
- * equalizer later is a parameter change rather than a graph rebuild — reconnecting nodes
- * mid-playback is audible.
+ * ReplayGain sits on each deck rather than on the shared `preGain`, because during a
+ * crossfade two tracks are audible at once and they rarely want the same correction. The
+ * fade envelope is a separate node from the gain so the two can be written independently —
+ * multiplying them by hand would mean recomputing the whole envelope every time a level
+ * changed.
+ *
+ * `preGain` carries the EQ preamp and nothing else, ahead of the filters so it never
+ * changes the shape of the curve. `master` is volume, after them, so turning it down never
+ * alters the tone.
  */
 
 /**
  * Volume is not linear.
  *
  * Perceived loudness tracks roughly the cube of amplitude, so a linear slider spends its
- * bottom third on changes nobody can hear and crams every useful step into the top. The
- * exponent maps slider travel onto something that feels evenly spaced.
+ * bottom third on changes nobody can hear and crams every useful step into the top.
  */
 const VOLUME_CURVE = 2.5;
 
-/** Ramp time for volume changes. Short enough to feel instant, long enough to not click. */
+/** Ramp time for level changes. Short enough to feel instant, long enough not to click. */
 const RAMP = 0.02;
+
+/** How early the next track is told to buffer. */
+const PRELOAD_LEAD = 15;
+
+/**
+ * How close to the end a gapless handover fires.
+ *
+ * `timeupdate` only fires about four times a second, which is far too coarse to hand over
+ * on — so the position is polled on an animation frame instead and this is the margin that
+ * absorbs the remaining jitter.
+ */
+const GAPLESS_LEAD = 0.12;
+
+/** Points in a crossfade envelope. Enough that the curve is smooth, few enough to be free. */
+const CURVE_STEPS = 64;
 
 export type EngineEvents = {
   time: (position: number, duration: number) => void;
   ended: () => void;
   playing: (isPlaying: boolean) => void;
   error: (message: string) => void;
+  /** The engine moved to the preloaded track on its own. The queue must catch up. */
+  advanced: () => void;
 };
 
-export class Engine {
-  readonly element: HTMLAudioElement;
+export type NextTrack = { src: string; replayGainDb: number };
 
+type Deck = {
+  element: HTMLAudioElement;
+  source?: MediaElementAudioSourceNode;
+  rgGain?: GainNode;
+  fadeGain?: GainNode;
+};
+
+function makeDeck(): Deck {
+  const element = new Audio();
+  element.preload = 'auto';
+  /*
+   * Volume is handled entirely in the graph. Using the element's own control as well would
+   * put one stage outside it, where it cannot be ramped and does not compose with the
+   * ReplayGain or the EQ preamp.
+   */
+  element.volume = 1;
+  element.crossOrigin = 'anonymous';
+  return { element };
+}
+
+export class Engine {
   private context: AudioContext | undefined;
   private preGain: GainNode | undefined;
   private master: GainNode | undefined;
   private analyser: AnalyserNode | undefined;
   private filters: BiquadFilterNode[] = [];
 
+  private decks: [Deck, Deck] = [makeDeck(), makeDeck()];
+  private active: 0 | 1 = 0;
+
+  private next: NextTrack | undefined;
+  private preloaded = false;
+  private handingOver = false;
+  private frame = 0;
+
   private volume = 1;
   private gains: number[] = [...FLAT];
   private preampDb = 0;
   private replayGainDb = 0;
+  private crossfadeSeconds = 0;
 
-  /*
-   * Erased to a common call signature. A `{ [K]: Set<EngineEvents[K]> }` map cannot be
-   * written to through a generic key — TypeScript has to assume the worst case, which is
-   * the intersection of every listener type, and nothing satisfies that.
-   */
   private listeners = new Map<keyof EngineEvents, Set<(...args: unknown[]) => void>>();
 
   constructor() {
-    this.element = new Audio();
-    this.element.preload = 'auto';
-    /*
-     * Volume is handled by the master GainNode, never by the element. Using both would
-     * put one control outside the graph, where it could not be ramped and would not
-     * compose with the EQ preamp.
-     */
-    this.element.volume = 1;
-    this.element.crossOrigin = 'anonymous';
+    for (const deck of this.decks) this.wire(deck);
+  }
 
-    this.element.addEventListener('timeupdate', () => {
-      this.emit('time', this.element.currentTime, this.duration);
+  private get deck() {
+    return this.decks[this.active];
+  }
+
+  private get idle() {
+    return this.decks[this.active === 0 ? 1 : 0];
+  }
+
+  private wire(deck: Deck) {
+    const { element } = deck;
+
+    element.addEventListener('timeupdate', () => {
+      if (deck === this.deck) this.emit('time', element.currentTime, this.duration);
     });
-    this.element.addEventListener('loadedmetadata', () => {
-      this.emit('time', this.element.currentTime, this.duration);
+    element.addEventListener('loadedmetadata', () => {
+      if (deck === this.deck) this.emit('time', element.currentTime, this.duration);
     });
-    this.element.addEventListener('ended', () => this.emit('ended'));
-    this.element.addEventListener('play', () => this.emit('playing', true));
-    this.element.addEventListener('pause', () => this.emit('playing', false));
-    this.element.addEventListener('error', () => {
-      const code = this.element.error?.code;
+    element.addEventListener('play', () => {
+      if (deck === this.deck) { this.emit('playing', true); this.watch(); }
+    });
+    element.addEventListener('pause', () => {
+      if (deck === this.deck) { this.emit('playing', false); this.unwatch(); }
+    });
+    element.addEventListener('ended', () => {
+      // With a handover in flight the idle deck is already playing, and this is just the
+      // old one running out — not the end of anything.
+      if (deck === this.deck && !this.handingOver) this.emit('ended');
+    });
+    element.addEventListener('error', () => {
+      if (deck !== this.deck) return;
+      const code = element.error?.code;
       this.emit('error', code === 4 ? 'Unsupported or unreadable file' : 'Playback failed');
     });
   }
@@ -105,14 +165,13 @@ export class Engine {
    * Built on first play rather than in the constructor.
    *
    * An AudioContext created before any user gesture starts suspended, and Chromium logs a
-   * warning for it. Deferring until the first play means the context is always created
-   * inside a gesture and starts running.
+   * warning for it. Deferring until the first play means it is always created inside a
+   * gesture and starts running.
    */
   private ensureGraph() {
     if (this.context) return this.context;
 
     const context = new AudioContext();
-    const source = context.createMediaElementSource(this.element);
 
     const preGain = context.createGain();
     const master = context.createGain();
@@ -129,7 +188,17 @@ export class Engine {
       return filter;
     });
 
-    const chain: AudioNode[] = [source, preGain, ...this.filters, master, analyser];
+    this.decks.forEach((deck, i) => {
+      deck.source = context.createMediaElementSource(deck.element);
+      deck.rgGain = context.createGain();
+      deck.fadeGain = context.createGain();
+      // Only the active deck is audible until a handover opens the other one.
+      deck.fadeGain.gain.value = i === this.active ? 1 : 0;
+
+      deck.source.connect(deck.rgGain).connect(deck.fadeGain).connect(preGain);
+    });
+
+    const chain: AudioNode[] = [preGain, ...this.filters, master, analyser];
     for (let i = 0; i < chain.length - 1; i += 1) {
       (chain[i] as AudioNode).connect(chain[i + 1] as AudioNode);
     }
@@ -144,19 +213,20 @@ export class Engine {
     this.applyPreGain();
     this.applyBands();
 
+    const { rgGain } = this.deck;
+    if (rgGain) rgGain.gain.value = dbToGain(this.replayGainDb);
+
     return context;
   }
 
   private applyVolume() {
     if (!this.context || !this.master) return;
-    const target = this.volume ** VOLUME_CURVE;
-    this.master.gain.setTargetAtTime(target, this.context.currentTime, RAMP);
+    this.master.gain.setTargetAtTime(this.volume ** VOLUME_CURVE, this.context.currentTime, RAMP);
   }
 
   private applyPreGain() {
     if (!this.context || !this.preGain) return;
-    const target = dbToGain(this.preampDb + this.replayGainDb);
-    this.preGain.gain.setTargetAtTime(target, this.context.currentTime, RAMP);
+    this.preGain.gain.setTargetAtTime(dbToGain(this.preampDb), this.context.currentTime, RAMP);
   }
 
   private applyBands() {
@@ -166,24 +236,181 @@ export class Engine {
     });
   }
 
+  /* ---------- handover ---------- */
+
+  /**
+   * What to play after the current track, or `undefined` if nothing should follow.
+   *
+   * Set by the queue whenever the order changes. Nothing is preloaded until the current
+   * track is close to ending — buffering the next one immediately would spend bandwidth
+   * and memory on a choice the listener may well change.
+   */
+  setNext(next: NextTrack | undefined) {
+    if (next?.src === this.next?.src) return;
+
+    this.next = next;
+    this.preloaded = false;
+
+    if (!next) {
+      this.idle.element.removeAttribute('src');
+      this.idle.element.load();
+    }
+  }
+
+  setCrossfade(seconds: number) {
+    this.crossfadeSeconds = Math.max(0, Math.min(12, seconds));
+  }
+
+  /**
+   * Polls the playing deck on an animation frame.
+   *
+   * `timeupdate` fires roughly four times a second, so a handover driven by it would be up
+   * to 250 ms late — audible as exactly the gap this exists to remove.
+   */
+  private watch() {
+    if (this.frame) return;
+
+    const tick = () => {
+      this.frame = requestAnimationFrame(tick);
+      this.checkHandover();
+    };
+
+    this.frame = requestAnimationFrame(tick);
+  }
+
+  private unwatch() {
+    if (!this.frame) return;
+    cancelAnimationFrame(this.frame);
+    this.frame = 0;
+  }
+
+  private checkHandover() {
+    const { element } = this.deck;
+    const duration = this.duration;
+    if (!duration || this.handingOver || !this.next) return;
+
+    const remaining = duration - element.currentTime;
+
+    if (!this.preloaded && remaining <= Math.max(PRELOAD_LEAD, this.crossfadeSeconds + 2)) {
+      this.preloaded = true;
+      this.idle.element.src = this.next.src;
+      this.idle.element.load();
+    }
+
+    const lead = this.crossfadeSeconds > 0 ? this.crossfadeSeconds : GAPLESS_LEAD;
+    if (remaining <= lead) this.handover();
+  }
+
+  /** Equal power, so the total stays constant instead of dipping in the middle. */
+  private fadeCurve(rising: boolean) {
+    const curve = new Float32Array(CURVE_STEPS);
+    for (let i = 0; i < CURVE_STEPS; i += 1) {
+      const t = (i / (CURVE_STEPS - 1)) * (Math.PI / 2);
+      curve[i] = rising ? Math.sin(t) : Math.cos(t);
+    }
+    return curve;
+  }
+
+  private handover() {
+    const next = this.next;
+    const context = this.context;
+    if (!next || !context) return;
+
+    this.handingOver = true;
+
+    const from = this.deck;
+    const to = this.idle;
+
+    if (to.element.src !== next.src) {
+      to.element.src = next.src;
+      to.element.load();
+    }
+
+    to.element.currentTime = 0;
+    if (to.rgGain) to.rgGain.gain.value = dbToGain(next.replayGainDb);
+
+    void to.element.play().catch(() => {});
+
+    const now = context.currentTime;
+    const seconds = this.crossfadeSeconds;
+
+    if (seconds > 0 && from.fadeGain && to.fadeGain) {
+      from.fadeGain.gain.cancelScheduledValues(now);
+      to.fadeGain.gain.cancelScheduledValues(now);
+      from.fadeGain.gain.setValueCurveAtTime(this.fadeCurve(false), now, seconds);
+      to.fadeGain.gain.setValueCurveAtTime(this.fadeCurve(true), now, seconds);
+    } else {
+      // Gapless: no fade at all. Anything else would be an audible dip exactly where the
+      // recording expects continuity.
+      if (from.fadeGain) from.fadeGain.gain.setValueAtTime(0, now);
+      if (to.fadeGain) to.fadeGain.gain.setValueAtTime(1, now);
+    }
+
+    this.active = this.active === 0 ? 1 : 0;
+    this.replayGainDb = next.replayGainDb;
+    this.next = undefined;
+    this.preloaded = false;
+
+    // The outgoing deck keeps playing under the fade; stopping it once the fade is done
+    // frees the decoder. With no fade it is silenced already.
+    const stopAfter = seconds > 0 ? seconds * 1000 : 0;
+    setTimeout(() => {
+      from.element.pause();
+      this.handingOver = false;
+    }, stopAfter);
+
+    this.emit('advanced');
+    this.watch();
+  }
+
   /* ---------- transport ---------- */
 
   get duration() {
-    const value = this.element.duration;
+    const value = this.deck.element.duration;
     return Number.isFinite(value) ? value : 0;
   }
 
   get position() {
-    return this.element.currentTime;
+    return this.deck.element.currentTime;
   }
 
   get paused() {
-    return this.element.paused;
+    return this.deck.element.paused;
   }
 
-  load(src: string) {
-    this.element.src = src;
-    this.element.load();
+  /** For the visualizer. Undefined until the graph exists. */
+  getAnalyser() {
+    return this.analyser;
+  }
+
+  /**
+   * Loads a track directly, cancelling any handover in progress.
+   *
+   * This is what an explicit choice does — clicking a track, or pressing next. It is
+   * deliberately not how the queue advances on its own, which goes through `handover` so
+   * the audio never stops.
+   */
+  load(src: string, replayGainDb = 0) {
+    this.handingOver = false;
+    this.next = undefined;
+    this.preloaded = false;
+    this.replayGainDb = replayGainDb;
+
+    this.idle.element.pause();
+
+    const { element, rgGain, fadeGain } = this.deck;
+    if (rgGain) rgGain.gain.value = dbToGain(replayGainDb);
+    if (fadeGain && this.context) {
+      fadeGain.gain.cancelScheduledValues(this.context.currentTime);
+      fadeGain.gain.value = 1;
+    }
+    if (this.idle.fadeGain && this.context) {
+      this.idle.fadeGain.gain.cancelScheduledValues(this.context.currentTime);
+      this.idle.fadeGain.gain.value = 0;
+    }
+
+    element.src = src;
+    element.load();
   }
 
   async play() {
@@ -191,7 +418,7 @@ export class Engine {
     if (context.state === 'suspended') await context.resume();
 
     try {
-      await this.element.play();
+      await this.deck.element.play();
     } catch {
       // An aborted play() — because the source changed underneath it — is not an error
       // worth surfacing; the element fires its own `error` event for real failures.
@@ -199,18 +426,24 @@ export class Engine {
   }
 
   pause() {
-    this.element.pause();
+    this.deck.element.pause();
+    this.idle.element.pause();
   }
 
   async toggle() {
-    if (this.element.paused) await this.play();
+    if (this.deck.element.paused) await this.play();
     else this.pause();
   }
 
   seek(seconds: number) {
     const limit = this.duration;
-    this.element.currentTime = limit ? Math.min(Math.max(0, seconds), limit) : Math.max(0, seconds);
-    this.emit('time', this.element.currentTime, this.duration);
+    const { element } = this.deck;
+    element.currentTime = limit ? Math.min(Math.max(0, seconds), limit) : Math.max(0, seconds);
+
+    // Seeking backwards out of the handover window means the next track should no longer
+    // be on its way in.
+    this.preloaded = false;
+    this.emit('time', element.currentTime, this.duration);
   }
 
   /**
@@ -221,12 +454,14 @@ export class Engine {
    * has arrived over the protocol yet.
    */
   seekWhenReady(seconds: number) {
-    if (this.element.readyState >= 1) {
+    const { element } = this.deck;
+
+    if (element.readyState >= 1) {
       this.seek(seconds);
       return;
     }
 
-    this.element.addEventListener('loadedmetadata', () => this.seek(seconds), { once: true });
+    element.addEventListener('loadedmetadata', () => this.seek(seconds), { once: true });
   }
 
   /* ---------- levels ---------- */
@@ -249,11 +484,7 @@ export class Engine {
 
   setReplayGain(db: number) {
     this.replayGainDb = db;
-    this.applyPreGain();
-  }
-
-  /** For the visualizer. Returns undefined until the graph exists. */
-  getAnalyser() {
-    return this.analyser;
+    const { rgGain } = this.deck;
+    if (rgGain && this.context) rgGain.gain.setTargetAtTime(dbToGain(db), this.context.currentTime, RAMP);
   }
 }

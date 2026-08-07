@@ -933,7 +933,8 @@ input[type='range'] {
 }
 
 .eqcurve__handle {
-  circle { fill: var(--takt-accent); stroke: var(--takt-bg); stroke-width: 1.25; transition: r 100ms; }
+  // No outline at this size — a stroke as thick as the dot swallows it.
+  circle { fill: var(--takt-accent); stroke: none; transition: r 100ms; }
 
   &.is-active circle { fill: var(--takt-accent-hover); }
 }
