@@ -41,6 +41,8 @@ export type Persisted = {
   gapless: boolean;
   crossfade: number;
 
+  sidebarWidth: number;
+
   /**
    * The queue, as track ids, plus where playback had got to.
    *
@@ -78,6 +80,8 @@ export const DEFAULTS: Persisted = {
   // unless it is asked for.
   gapless: true,
   crossfade: 0,
+
+  sidebarWidth: 220,
 
   queue: [],
   queueIndex: -1,

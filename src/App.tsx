@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Equalizer } from './components/Equalizer';
 import { Icon } from './components/Icon';
 import { PlayerBar } from './components/PlayerBar';
 import { Queue } from './components/Queue';
+import { Resizer } from './components/Resizer';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { Sidebar } from './components/Sidebar';
 import { TitleBar } from './components/TitleBar';
@@ -26,6 +27,20 @@ export function App() {
   const merge = useLibrary((s) => s.merge);
   const setScan = useLibrary((s) => s.setScan);
   const enqueue = usePlayer((s) => s.enqueue);
+  const sidebarWidth = usePlayer((s) => s.sidebarWidth);
+
+  const mainRef = useRef<HTMLElement>(null);
+
+  /*
+   * Every view starts at the top.
+   *
+   * The scroller is shared between the library, each playlist and settings, so opening a
+   * playlist otherwise inherits however far down the previous list had been scrolled —
+   * landing halfway into a playlist whose name and cover are off-screen above.
+   */
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [view.kind, view.kind === 'playlist' ? view.id : undefined]);
 
   useTheme();
   useShortcuts();
@@ -91,10 +106,11 @@ export function App() {
     >
       <TitleBar />
 
-      <div className="app__body">
+      <div className="app__body" style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
         <Sidebar />
+        <Resizer />
 
-        <main className="app__main">
+        <main className="app__main" ref={mainRef}>
           {view.kind === 'settings'
             ? <SettingsPage onClose={() => setView({ kind: 'library' })} />
             : <TrackList />}

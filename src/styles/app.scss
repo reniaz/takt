@@ -76,8 +76,38 @@ button {
 
 .app__body {
   display: grid;
-  grid-template-columns: 220px 1fr auto;
+  // The handle gets its own column rather than overlaying the sidebar, so nothing at the
+  // sidebar's right edge is covered by an invisible drag target.
+  grid-template-columns: var(--sidebar-width, 220px) 5px 1fr auto;
   min-height: 0;
+}
+
+.resizer {
+  position: relative;
+  cursor: col-resize;
+  background: var(--takt-border);
+  transition: background 120ms;
+
+  /*
+   * A hairline is the right thing to look at and the wrong thing to aim at. The bar stays
+   * 5px; this widens the target either side of it without widening the divider.
+   */
+  &::after {
+    position: absolute;
+    inset: 0 -4px;
+    content: '';
+  }
+
+  &:hover,
+  &--active,
+  &:focus-visible { background: var(--takt-accent); }
+  &:focus-visible { outline: none; }
+}
+
+/* While dragging, the pointer sweeps over the track list and would select its text. */
+body.is-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .app__main {
