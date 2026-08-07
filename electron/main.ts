@@ -1,11 +1,13 @@
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, shell } from 'electron';
 
-import { isAudio, readTracks, walk } from './library/files';
-import { pathFor } from './library/registry';
-import { APP_ORIGIN, registerHandlers, registerScheme, setTrackResolver } from './protocol';
+import { allPlaylists, allTracks } from './library/db';
+import { importPaths, isAudio, toTrackInfo } from './library/files';
+import { initLibrary } from './library/ipc';
+import { idFor, pathFor } from './library/registry';
+import { APP_ORIGIN, registerHandlers, registerScheme, setCoverResolver, setTrackResolver } from './protocol';
 import { closeStartupSplash, runStartupUpdate } from './startupUpdate';
 import { initUpdater } from './updater';
 import { initWindowControls, trackMaximizeState } from './windowControls';
@@ -65,7 +67,16 @@ function audioArgs(argv: readonly string[]) {
 
 async function sendOpenFiles(paths: readonly string[]) {
   if (!paths.length || !mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.send('takt:open-files', await readTracks(paths));
+
+  // Indexed the same way as anything added from the UI, so a file opened from Explorer is
+  // in the library afterwards rather than a one-off that vanishes on restart.
+  await importPaths(paths);
+
+  const wanted = new Set(paths.map(idFor));
+  mainWindow.webContents.send(
+    'takt:open-files',
+    allTracks().filter((row) => wanted.has(row.id)).map(toTrackInfo),
+  );
 }
 
 function createWindow() {
@@ -153,27 +164,6 @@ function createWindow() {
   return window;
 }
 
-function initFilePicking() {
-  ipcMain.handle('takt:pick-files', async () => {
-    const result = await dialog.showOpenDialog({
-      title: 'Add music',
-      properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'Audio', extensions: ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'oga', 'opus', 'wav'] }],
-    });
-
-    return result.canceled ? [] : readTracks(result.filePaths);
-  });
-
-  ipcMain.handle('takt:pick-folder', async () => {
-    const result = await dialog.showOpenDialog({
-      title: 'Add a music folder',
-      properties: ['openDirectory'],
-    });
-
-    if (result.canceled || !result.filePaths[0]) return [];
-    return readTracks(await walk(result.filePaths[0]));
-  });
-}
 
 app.on('second-instance', (_event, argv) => {
   if (mainWindow) {
@@ -190,6 +180,7 @@ app.on('window-all-closed', () => {
 if (isPrimary) {
   void app.whenReady().then(async () => {
     setTrackResolver(pathFor);
+    setCoverResolver((id) => allPlaylists().find((p) => p.id === id)?.thumbnail ?? undefined);
     registerHandlers(RENDERER_ROOT);
 
     // Runs behind the splash, before there is a main window. Returns true when an install
@@ -198,7 +189,7 @@ if (isPrimary) {
     if (await runStartupUpdate(SPLASH_ICON, ICON)) return;
 
     initWindowControls();
-    initFilePicking();
+    initLibrary(() => mainWindow);
 
     mainWindow = createWindow();
     initUpdater(() => mainWindow);

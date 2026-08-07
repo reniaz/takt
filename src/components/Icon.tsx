@@ -48,6 +48,10 @@ const ICONS = {
     <path d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3" />
   </>,
   reset: <path d="M3.5 5.5v5h5M3.9 10.5a8.5 8.5 0 1 1 .6 5" />,
+  edit: <path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z" />,
+  image: <><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.5" /><path d="M4 17l4.5-4.5 3 3L15 12l5 5" /></>,
+  download: <path d="M12 3v12M7 11l5 5 5-5M4 20h16" />,
+  upload: <path d="M12 17V5M7 9l5-5 5 5M4 20h16" />,
   check: <path d="M4 12.5 9.5 18 20 6.5" />,
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
 } satisfies Record<string, ReactNode>;

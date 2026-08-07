@@ -212,12 +212,55 @@ button {
   display: flex;
   gap: 6px;
   align-items: center;
+  justify-content: space-between;
   padding: 0 8px 7px;
   font-size: 10px;
   font-weight: 600;
   color: var(--takt-text-faint);
   text-transform: uppercase;
   letter-spacing: 0.09em;
+}
+
+.sidebar__add {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--takt-text-faint);
+  border-radius: 5px;
+
+  &:hover { color: var(--takt-text); background: var(--takt-surface-hover); }
+}
+
+.sidebar__empty {
+  margin: 0;
+  padding: 0 8px 4px;
+  font-size: 11px;
+  color: var(--takt-text-faint);
+}
+
+/* ---------- scan progress ---------- */
+
+.scan { padding: 8px; }
+
+.scan__text {
+  margin-bottom: 5px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--takt-text-faint);
+}
+
+.scan__track {
+  height: 3px;
+  overflow: hidden;
+  background: var(--takt-raised);
+  border-radius: 2px;
+}
+
+.scan__bar {
+  height: 100%;
+  background: var(--takt-accent);
+  transition: width 120ms linear;
 }
 
 .navitem {
@@ -229,6 +272,7 @@ button {
   color: var(--takt-text-muted);
   text-align: left;
   border-radius: 6px;
+  cursor: pointer;
   transition: background 120ms, color 120ms;
 
   &:hover { color: var(--takt-text); background: var(--takt-surface-hover); }
@@ -238,12 +282,145 @@ button {
     background: var(--takt-raised);
   }
 
-  span:first-of-type { flex: 1; }
+  /* Where a dragged selection would land. */
+  &--drop {
+    color: var(--takt-text);
+    background: var(--takt-accent-soft);
+    box-shadow: inset 0 0 0 1px var(--takt-accent);
+  }
+
+  > span:first-of-type { flex: 1; }
+  &--playlist { gap: 8px; padding: 5px 8px; }
+}
+
+.navitem__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .navitem__count {
+  flex: none;
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
   color: var(--takt-text-faint);
+}
+
+.navitem__rename {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 5px;
+  font: inherit;
+  color: var(--takt-text);
+  background: var(--takt-bg);
+  border: 1px solid var(--takt-accent);
+  border-radius: 4px;
+  outline: none;
+}
+
+/* ---------- playlist art ---------- */
+
+.plart {
+  display: grid;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  background: var(--takt-raised);
+  border-radius: 4px;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* Two, three or four covers tile the square; three leaves the last cell as background,
+     which reads as deliberate rather than broken at this size. */
+  &--mosaic {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  &--single { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  &--empty { color: var(--takt-text-faint); }
+}
+
+/* ---------- playlist header ---------- */
+
+.plhead {
+  display: flex;
+  gap: 18px;
+  align-items: flex-end;
+  padding: 22px 12px 24px;
+
+  h1 { margin: 2px 0 6px; font-size: 26px; font-weight: 600; line-height: 1.15; }
+}
+
+.plhead__kind {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--takt-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+.plhead__meta {
+  font-size: 12px;
+  color: var(--takt-text-muted);
+}
+
+.plhead__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* ---------- context menu ---------- */
+
+.menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 194px;
+  max-height: 78vh;
+  padding: 5px;
+  overflow-y: auto;
+  background: var(--takt-surface);
+  border: 1px solid var(--takt-border-strong);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px var(--takt-shadow);
+}
+
+.menu__item {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  padding: 6px 9px;
+  color: var(--takt-text);
+  text-align: left;
+  border-radius: 5px;
+
+  &:hover:not(:disabled) { background: var(--takt-raised); }
+  &:disabled { cursor: default; opacity: 0.4; }
+  &--danger { color: var(--takt-error); }
+
+  svg { flex: none; color: var(--takt-text-muted); }
+  &--danger svg { color: var(--takt-error); }
+}
+
+.menu__gap { width: 15px; }
+
+.menu__sep {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--takt-border);
+}
+
+.menu__label {
+  padding: 7px 9px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--takt-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 /* ---------- track list ---------- */
@@ -251,6 +428,7 @@ button {
 .tracklist { padding: 8px 10px 14px; }
 
 .row {
+  user-select: none;
   display: grid;
   grid-template-columns: 30px 34px minmax(0, 1fr) minmax(0, 0.7fr) 48px;
   gap: 12px;
@@ -262,6 +440,13 @@ button {
   &:hover { background: var(--takt-surface-hover); }
   &--current { background: var(--takt-raised); }
   &--current .row__title { color: var(--takt-accent); }
+
+  /* Selection has to stay visible under the playing highlight, so it is an outline
+     rather than another background. */
+  &--selected {
+    background: var(--takt-accent-soft);
+    box-shadow: inset 0 0 0 1px var(--takt-accent);
+  }
 }
 
 .row__index {
@@ -748,7 +933,7 @@ input[type='range'] {
 }
 
 .eqcurve__handle {
-  circle { fill: var(--takt-accent); stroke: var(--takt-bg); stroke-width: 2; transition: r 100ms; }
+  circle { fill: var(--takt-accent); stroke: var(--takt-bg); stroke-width: 1.25; transition: r 100ms; }
 
   &.is-active circle { fill: var(--takt-accent-hover); }
 }

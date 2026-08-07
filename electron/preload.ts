@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 import type { IpcRendererEvent } from 'electron';
 
@@ -41,11 +41,54 @@ const api = {
   onWindowState: (listener: (state: { isMaximized: boolean }) => void) =>
     on('takt:window-state', listener),
 
-  /* Files */
+  /* Library */
+  library: (): Promise<TrackInfo[]> => ipcRenderer.invoke('takt:library'),
   pickFiles: (): Promise<TrackInfo[]> => ipcRenderer.invoke('takt:pick-files'),
   pickFolder: (): Promise<TrackInfo[]> => ipcRenderer.invoke('takt:pick-folder'),
+  addPaths: (paths: string[]): Promise<TrackInfo[]> => ipcRenderer.invoke('takt:add-paths', paths),
+  /**
+   * The path behind a dropped File.
+   *
+   * `File.path` was removed in Electron 32, and a sandboxed renderer has no way back to
+   * the filesystem — `webUtils` in the preload is what is left. It is synchronous and does
+   * not touch disk; it only reads what the drop already told the browser process.
+   */
+  pathForFile: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return '';
+    }
+  },
+  removeTracks: (ids: string[]): Promise<TrackInfo[]> => ipcRenderer.invoke('takt:remove-tracks', ids),
+  notePlayed: (id: string) => ipcRenderer.send('takt:note-played', id),
+  reveal: (id: string): Promise<void> => ipcRenderer.invoke('takt:reveal', id),
+  /** `undefined` when a scan finishes, so the progress bar knows to disappear. */
+  onScanProgress: (listener: (progress: { done: number; total: number } | undefined) => void) =>
+    on('takt:scan-progress', listener),
   /** Files handed to the app by Explorer — double-click, "Open with", or drag onto the exe. */
   onOpenFiles: (listener: (tracks: TrackInfo[]) => void) => on('takt:open-files', listener),
+
+  /* Playlists. Each returns the full list, so the renderer never patches state by hand. */
+  playlists: (): Promise<PlaylistInfo[]> => ipcRenderer.invoke('takt:playlists'),
+  createPlaylist: (name: string, trackIds?: string[]): Promise<PlaylistInfo[]> =>
+    ipcRenderer.invoke('takt:playlist-create', name, trackIds ?? []),
+  renamePlaylist: (id: string, name: string): Promise<PlaylistInfo[]> =>
+    ipcRenderer.invoke('takt:playlist-rename', id, name),
+  deletePlaylist: (id: string): Promise<PlaylistInfo[]> => ipcRenderer.invoke('takt:playlist-delete', id),
+  addToPlaylist: (id: string, trackIds: string[]): Promise<PlaylistInfo[]> =>
+    ipcRenderer.invoke('takt:playlist-add', id, trackIds),
+  removeFromPlaylist: (id: string, trackIds: string[]): Promise<PlaylistInfo[]> =>
+    ipcRenderer.invoke('takt:playlist-remove', id, trackIds),
+  reorderPlaylist: (id: string, trackIds: string[]): Promise<PlaylistInfo[]> =>
+    ipcRenderer.invoke('takt:playlist-reorder', id, trackIds),
+  pickPlaylistThumbnail: (id: string): Promise<PlaylistInfo[]> =>
+    ipcRenderer.invoke('takt:playlist-thumbnail', id),
+  clearPlaylistThumbnail: (id: string): Promise<PlaylistInfo[]> =>
+    ipcRenderer.invoke('takt:playlist-thumbnail-clear', id),
+  importPlaylist: (): Promise<{ playlists: PlaylistInfo[]; tracks: TrackInfo[] }> =>
+    ipcRenderer.invoke('takt:playlist-import'),
+  exportPlaylist: (id: string): Promise<boolean> => ipcRenderer.invoke('takt:playlist-export', id),
 
   /* Updates */
   onUpdateReady: (listener: () => void) => on('takt:update-ready', listener),
@@ -59,7 +102,16 @@ export type TrackInfo = {
   artist?: string;
   album?: string;
   duration?: number;
+  /** Filename under the artwork cache, served as `takt://art/<artwork>`. */
   artwork?: string;
+};
+
+export type PlaylistInfo = {
+  id: string;
+  name: string;
+  /** An absolute path to a chosen cover. Absent means the UI builds a mosaic. */
+  thumbnail?: string;
+  trackIds: string[];
 };
 
 export type TaktApi = typeof api;

@@ -48,6 +48,7 @@ export function registerScheme() {
 type Resolver = (id: string) => string | undefined;
 
 let resolveTrack: Resolver = () => undefined;
+let resolveCover: Resolver = () => undefined;
 
 /**
  * Points the media handler at the library. Called once at startup; exists so `protocol.ts`
@@ -55,6 +56,17 @@ let resolveTrack: Resolver = () => undefined;
  */
 export function setTrackResolver(fn: Resolver) {
   resolveTrack = fn;
+}
+
+/**
+ * Playlist covers, which are arbitrary images the user picked from anywhere on disk.
+ *
+ * Routed through an id like everything else rather than by putting the path in the URL:
+ * the renderer never learns where the file is, and the handler can only ever serve an
+ * image some playlist actually points at.
+ */
+export function setCoverResolver(fn: Resolver) {
+  resolveCover = fn;
 }
 
 /* ---------- mime ---------- */
@@ -223,6 +235,12 @@ export function registerHandlers(rendererRoot: string) {
       case 'media': {
         const path = resolveTrack(target);
         if (!path) return new Response('Unknown track', { status: 404 });
+        return serveFile(path, request);
+      }
+
+      case 'cover': {
+        const path = resolveCover(target);
+        if (!path) return new Response('No cover', { status: 404 });
         return serveFile(path, request);
       }
 

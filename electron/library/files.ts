@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
+import { existsSync, statSync } from 'node:fs';
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 
 import { app } from 'electron';
 
-import { register } from './registry';
+import { isCurrent, upsertTracks, type TrackRow } from './db';
+import { idFor } from './registry';
 
 import type { TrackInfo } from '../preload';
 
@@ -23,9 +24,9 @@ function artworkDir() {
 /**
  * Writes embedded cover art out once per distinct image.
  *
- * Keyed by a hash of the picture bytes, not by album or by track: a 50-track album
- * embeds the same JPEG 50 times, and hashing the content collapses those to one file on
- * disk while still handling the case where two albums happen to share a cover.
+ * Keyed by a hash of the picture bytes, not by album or by track: a 50-track album embeds
+ * the same JPEG 50 times, and hashing the content collapses those to one file on disk
+ * while still handling two albums that happen to share a cover.
  */
 async function saveArtwork(data: Uint8Array, format: string) {
   const hash = createHash('sha1').update(data).digest('hex');
@@ -40,16 +41,39 @@ async function saveArtwork(data: Uint8Array, format: string) {
   return `${hash}${ext}`;
 }
 
+/** ReplayGain arrives as `{ dB: number }`, a bare number, or a "-7.2 dB" string. */
+function gainToDb(value: unknown): number | null {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'object' && value && 'dB' in value) {
+    const db = (value as { dB: unknown }).dB;
+    return typeof db === 'number' ? db : null;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+type ParsedTrack = Omit<TrackRow, 'addedAt' | 'playCount' | 'lastPlayedAt'>;
+
 /**
  * Reads tags for one file.
  *
- * Never throws: a corrupt or half-written file should appear in the list under its
- * filename rather than take down the whole import. `duration: true` costs a full parse on
- * formats without a duration in the header (notably VBR MP3 without a Xing frame), which
- * is worth it — a missing duration breaks the seek bar.
+ * Never throws: a corrupt or half-written file should appear under its filename rather than
+ * take down the whole import. `duration: true` costs a full parse on formats without a
+ * duration in the header (notably VBR MP3 without a Xing frame), which is worth it — a
+ * missing duration breaks the seek bar.
  */
-export async function readTrack(path: string): Promise<TrackInfo> {
-  const id = register(path);
+async function parse(path: string): Promise<ParsedTrack> {
+  const stat = statSync(path);
+  const base = {
+    id: idFor(path),
+    path,
+    mtime: Math.floor(stat.mtimeMs),
+    size: stat.size,
+  };
+
   const fallback = basename(path, extname(path));
 
   try {
@@ -57,28 +81,89 @@ export async function readTrack(path: string): Promise<TrackInfo> {
     const { common, format } = await parseFile(path, { duration: true });
 
     const picture = common.picture?.[0];
-    const artwork = picture
-      ? await saveArtwork(picture.data, picture.format)
-      : undefined;
 
     return {
-      id,
-      path,
+      ...base,
       title: common.title?.trim() || fallback,
-      ...(common.artist ? { artist: common.artist } : undefined),
-      ...(common.album ? { album: common.album } : undefined),
-      ...(format.duration ? { duration: format.duration } : undefined),
-      ...(artwork ? { artwork } : undefined),
+      artist: common.artist ?? null,
+      albumArtist: common.albumartist ?? null,
+      album: common.album ?? null,
+      year: common.year ?? null,
+      trackNo: common.track?.no ?? null,
+      discNo: common.disk?.no ?? null,
+      genre: common.genre?.[0] ?? null,
+      duration: format.duration ?? null,
+      codec: format.codec ?? null,
+      artwork: picture ? await saveArtwork(picture.data, picture.format) : null,
+      rgTrack: gainToDb(common.replaygain_track_gain),
+      rgAlbum: gainToDb(common.replaygain_album_gain),
     };
   } catch {
-    return { id, path, title: fallback };
+    return {
+      ...base,
+      title: fallback,
+      artist: null,
+      albumArtist: null,
+      album: null,
+      year: null,
+      trackNo: null,
+      discNo: null,
+      genre: null,
+      duration: null,
+      codec: null,
+      artwork: null,
+      rgTrack: null,
+      rgAlbum: null,
+    };
   }
 }
 
-export async function readTracks(paths: readonly string[]) {
-  const tracks: TrackInfo[] = [];
-  for (const path of paths) tracks.push(await readTrack(path));
-  return tracks;
+export function toTrackInfo(row: Pick<TrackRow, 'id' | 'path' | 'title' | 'artist' | 'album' | 'duration' | 'artwork'>): TrackInfo {
+  return {
+    id: row.id,
+    path: row.path,
+    title: row.title,
+    ...(row.artist ? { artist: row.artist } : undefined),
+    ...(row.album ? { album: row.album } : undefined),
+    ...(row.duration ? { duration: row.duration } : undefined),
+    ...(row.artwork ? { artwork: row.artwork } : undefined),
+  };
+}
+
+/**
+ * Parses and indexes a set of files.
+ *
+ * Files whose size and mtime are unchanged since the last scan are not re-parsed — tag
+ * reading is the whole cost of an import, and re-reading an unchanged 5,000-file library
+ * on every launch would make startup unusable. They are still returned, from the database.
+ */
+export async function importPaths(
+  paths: readonly string[],
+  onProgress?: (done: number, total: number) => void,
+) {
+  const parsed: ParsedTrack[] = [];
+  const unchanged: string[] = [];
+
+  for (const [index, path] of paths.entries()) {
+    const id = idFor(path);
+
+    let skip = false;
+    try {
+      const stat = statSync(path);
+      skip = isCurrent(id, Math.floor(stat.mtimeMs), stat.size);
+    } catch {
+      continue; // Vanished between listing and reading.
+    }
+
+    if (skip) unchanged.push(id);
+    else parsed.push(await parse(path));
+
+    onProgress?.(index + 1, paths.length);
+  }
+
+  if (parsed.length) upsertTracks(parsed);
+
+  return { changed: parsed.length, unchanged: unchanged.length };
 }
 
 /** Walks a folder for playable files. Symlinks are not followed, to avoid cycles. */

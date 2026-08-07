@@ -189,7 +189,12 @@ export function EqCurve({ gains, onChange, disabled = false, height = 150, label
           return (
             <g key={band.frequency} className={`eqcurve__handle ${active ? 'is-active' : ''}`}>
               <line className="eqcurve__stem" x1={bandX[i]} x2={bandX[i]} y1={dbToY(0)} y2={dbToY(gain)} />
-              <circle cx={bandX[i]} cy={dbToY(gain)} r={active ? 11 : 8} />
+              {/*
+                Small on purpose. The dot marks where a band sits; it is not the target —
+                the whole surface is, and the invisible hit circle below is 22 units wide.
+                A large dot only covers the curve it is supposed to annotate.
+              */}
+              <circle cx={bandX[i]} cy={dbToY(gain)} r={active ? 6 : 4.5} />
               {/*
                 A focusable, keyboard-operable proxy for each handle. The pointer path never
                 touches it; it exists so the control is reachable without a mouse, which a

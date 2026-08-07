@@ -1,59 +1,259 @@
-import { usePlayer } from '../state/player';
-import { Icon } from './Icon';
+import { useRef, useState } from 'react';
 
-export function Sidebar({
-  settingsOpen,
-  onOpenSettings,
-}: {
-  settingsOpen: boolean;
-  onOpenSettings: () => void;
-}) {
-  const addTracks = usePlayer((s) => s.addTracks);
-  const count = usePlayer((s) => s.queue.length);
+import { playlistTracks, useLibrary } from '../state/library';
+import { usePlayer } from '../state/player';
+import { ContextMenu, type MenuState } from './ContextMenu';
+import { Icon } from './Icon';
+import { PlaylistArt } from './PlaylistArt';
+
+export function Sidebar() {
+  const view = useLibrary((s) => s.view);
+  const setView = useLibrary((s) => s.setView);
+  const playlists = useLibrary((s) => s.playlists);
+  const setPlaylists = useLibrary((s) => s.setPlaylists);
+  const merge = useLibrary((s) => s.merge);
+  const trackCount = useLibrary((s) => s.tracks.size);
+
+  const enqueue = usePlayer((s) => s.enqueue);
+  const playNow = usePlayer((s) => s.playNow);
+  const playNext = usePlayer((s) => s.playNext);
+
+  const [menu, setMenu] = useState<MenuState>(undefined);
+  const [renaming, setRenaming] = useState<string | undefined>(undefined);
+  const [dropTarget, setDropTarget] = useState<string | undefined>(undefined);
+
+  const add = async (pick: () => Promise<Awaited<ReturnType<typeof window.takt.pickFiles>>>) => {
+    const tracks = await pick();
+    merge(tracks);
+    if (tracks.length) setView({ kind: 'library' });
+  };
 
   return (
     <nav className="sidebar">
       <div className="sidebar__section">
-        <div className="sidebar__label">Library</div>
-        <button type="button" className={`navitem ${settingsOpen ? '' : 'navitem--active'}`}>
+        <button
+          type="button"
+          className={`navitem ${view.kind === 'library' ? 'navitem--active' : ''}`}
+          onClick={() => setView({ kind: 'library' })}
+        >
           <Icon name="music" size={16} />
           <span>All tracks</span>
-          <span className="navitem__count">{count || ''}</span>
+          <span className="navitem__count">{trackCount || ''}</span>
         </button>
       </div>
 
       <div className="sidebar__section">
-        <div className="sidebar__label">Add</div>
-        <button
-          type="button"
-          className="navitem"
-          onClick={async () => addTracks(await window.takt.pickFolder())}
-        >
+        <div className="sidebar__label">
+          <span>Playlists</span>
+          <button
+            type="button"
+            className="sidebar__add"
+            title="New playlist"
+            aria-label="New playlist"
+            onClick={async () => {
+              const next = await window.takt.createPlaylist('New playlist');
+              setPlaylists(next);
+              // Straight into rename: a playlist called "New playlist" is a chore left for
+              // later, and later never comes.
+              const created = next[next.length - 1];
+              if (created) { setView({ kind: 'playlist', id: created.id }); setRenaming(created.id); }
+            }}
+          >
+            <Icon name="plus" size={14} />
+          </button>
+        </div>
+
+        {playlists.length === 0 && <p className="sidebar__empty">None yet.</p>}
+
+        {playlists.map((list) => (
+          <div
+            key={list.id}
+            className={`navitem navitem--playlist ${view.kind === 'playlist' && view.id === list.id ? 'navitem--active' : ''} ${dropTarget === list.id ? 'navitem--drop' : ''}`}
+            onClick={() => setView({ kind: 'playlist', id: list.id })}
+            onDoubleClick={() => playNow(playlistTracks(list.id))}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter') setView({ kind: 'playlist', id: list.id }); }}
+            /* Tracks can be dragged from any list straight onto a playlist. */
+            onDragOver={(e) => {
+              if (!e.dataTransfer.types.includes('application/x-takt-tracks')) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+              setDropTarget(list.id);
+            }}
+            onDragLeave={() => setDropTarget((c) => (c === list.id ? undefined : c))}
+            onDrop={async (e) => {
+              e.preventDefault();
+              setDropTarget(undefined);
+              const raw = e.dataTransfer.getData('application/x-takt-tracks');
+              if (!raw) return;
+              setPlaylists(await window.takt.addToPlaylist(list.id, JSON.parse(raw) as string[]));
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenu({
+                x: e.clientX,
+                y: e.clientY,
+                items: [
+                  { label: 'Play', icon: 'play', onSelect: () => playNow(playlistTracks(list.id)) },
+                  { label: 'Play next', icon: 'next', onSelect: () => playNext(playlistTracks(list.id)) },
+                  { label: 'Add to queue', icon: 'queue', onSelect: () => enqueue(playlistTracks(list.id)) },
+                  { kind: 'separator' },
+                  { label: 'Rename', icon: 'edit', onSelect: () => setRenaming(list.id) },
+                  {
+                    label: 'Choose cover…',
+                    icon: 'image',
+                    onSelect: async () => setPlaylists(await window.takt.pickPlaylistThumbnail(list.id)),
+                  },
+                  {
+                    label: 'Use album covers',
+                    icon: 'reset',
+                    disabled: !list.thumbnail,
+                    onSelect: async () => setPlaylists(await window.takt.clearPlaylistThumbnail(list.id)),
+                  },
+                  { kind: 'separator' },
+                  {
+                    label: 'Export as .m3u8',
+                    icon: 'download',
+                    disabled: list.trackIds.length === 0,
+                    onSelect: () => void window.takt.exportPlaylist(list.id),
+                  },
+                  {
+                    label: 'Delete',
+                    icon: 'trash',
+                    danger: true,
+                    onSelect: async () => {
+                      setPlaylists(await window.takt.deletePlaylist(list.id));
+                      if (view.kind === 'playlist' && view.id === list.id) setView({ kind: 'library' });
+                    },
+                  },
+                ],
+              });
+            }}
+          >
+            <PlaylistArt playlist={list} size={22} />
+
+            {renaming === list.id ? (
+              <RenameField
+                initial={list.name}
+                onCommit={async (name) => {
+                  if (name && name !== list.name) setPlaylists(await window.takt.renamePlaylist(list.id, name));
+                  setRenaming(undefined);
+                }}
+                onCancel={() => setRenaming(undefined)}
+              />
+            ) : (
+              <>
+                <span className="navitem__name">{list.name}</span>
+                <span className="navitem__count">{list.trackIds.length || ''}</span>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="sidebar__section">
+        <div className="sidebar__label"><span>Add</span></div>
+        <button type="button" className="navitem" onClick={() => add(window.takt.pickFolder)}>
           <Icon name="folder" size={16} />
           <span>Folder…</span>
+        </button>
+        <button type="button" className="navitem" onClick={() => add(window.takt.pickFiles)}>
+          <Icon name="file" size={16} />
+          <span>Files…</span>
         </button>
         <button
           type="button"
           className="navitem"
-          onClick={async () => addTracks(await window.takt.pickFiles())}
+          onClick={async () => {
+            const { playlists: next, tracks } = await window.takt.importPlaylist();
+            merge(tracks);
+            setPlaylists(next);
+          }}
         >
-          <Icon name="file" size={16} />
-          <span>Files…</span>
+          <Icon name="upload" size={16} />
+          <span>Import .m3u8…</span>
         </button>
       </div>
 
       <div className="sidebar__spacer" />
 
-      {/* Appearance lives in Settings. The sidebar is for getting to music. */}
+      <ScanProgress />
+
       <button
         type="button"
-        className={`navitem ${settingsOpen ? 'navitem--active' : ''}`}
-        onClick={onOpenSettings}
-        aria-pressed={settingsOpen}
+        className={`navitem ${view.kind === 'settings' ? 'navitem--active' : ''}`}
+        onClick={() => setView(view.kind === 'settings' ? { kind: 'library' } : { kind: 'settings' })}
+        aria-pressed={view.kind === 'settings'}
       >
         <Icon name="settings" size={16} />
         <span>Settings</span>
       </button>
+
+      <ContextMenu state={menu} onClose={() => setMenu(undefined)} />
     </nav>
+  );
+}
+
+/**
+ * The inline name field.
+ *
+ * Enter commits directly rather than by calling `blur()` and letting the blur handler do
+ * it. Routing a deliberate keypress through a focus side effect means the commit only
+ * happens if focus actually moves, which is one more thing that can quietly not happen —
+ * and leaves the field open with the typed name still in it.
+ *
+ * A `committed` flag keeps the two paths from both firing: Enter commits, the resulting
+ * unmount blurs the field, and without it the blur handler would commit a second time.
+ */
+function RenameField({
+  initial,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  onCommit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const done = useRef(false);
+
+  const commit = () => {
+    if (done.current) return;
+    done.current = true;
+    onCommit(value.trim());
+  };
+
+  return (
+    <input
+      className="navitem__rename"
+      autoFocus
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onFocus={(e) => e.currentTarget.select()}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        // Space is play/pause, and every letter is a shortcut, everywhere else.
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        else if (e.key === 'Escape') { done.current = true; onCancel(); }
+      }}
+    />
+  );
+}
+
+/** Shown only while a scan is running; a folder of a few thousand files is not instant. */
+function ScanProgress() {
+  const scan = useLibrary((s) => s.scan);
+  if (!scan) return null;
+
+  return (
+    <div className="scan">
+      <div className="scan__text">Reading tags… {scan.done} / {scan.total}</div>
+      <div className="scan__track">
+        <div className="scan__bar" style={{ width: `${(scan.done / Math.max(1, scan.total)) * 100}%` }} />
+      </div>
+    </div>
   );
 }

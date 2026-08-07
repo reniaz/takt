@@ -63,6 +63,11 @@ type State = {
 
 type Actions = {
   addTracks: (tracks: readonly TrackInfo[], playFirst?: boolean) => void;
+  /** Replaces the queue and starts at `startAt`. What double-clicking a track does. */
+  playNow: (tracks: readonly TrackInfo[], startAt?: number) => void;
+  /** Inserts straight after the current track, so it is what plays next. */
+  playNext: (tracks: readonly TrackInfo[]) => void;
+  enqueue: (tracks: readonly TrackInfo[]) => void;
   playAt: (index: number) => void;
   playId: (id: string) => void;
   toggle: () => void;
@@ -136,6 +141,48 @@ export const usePlayer = create<State & Actions>((set, get) => ({
     }
   },
 
+  playNow: (incoming, startAt = 0) => {
+    if (!incoming.length) return;
+
+    const tracks = new Map(get().tracks);
+    for (const track of incoming) tracks.set(track.id, track);
+
+    // A fresh queue, so shuffle's saved order refers to something that still exists.
+    set({ tracks, queue: incoming.map((t) => t.id), unshuffled: undefined, shuffle: false });
+    get().playAt(Math.max(0, Math.min(startAt, incoming.length - 1)));
+  },
+
+  playNext: (incoming) => {
+    if (!incoming.length) return;
+
+    const { queue, index } = get();
+    const tracks = new Map(get().tracks);
+    for (const track of incoming) tracks.set(track.id, track);
+
+    const ids = incoming.map((t) => t.id);
+    // Anything already queued moves rather than duplicating — "play next" is a statement
+    // about position, not a request for a second copy.
+    const rest = queue.filter((id, i) => i <= index && !ids.includes(id));
+    const tail = queue.filter((id, i) => i > index && !ids.includes(id));
+    const head = index < 0 ? [] : rest;
+
+    set({ tracks, queue: [...head, ...ids, ...tail], index: head.length - 1, unshuffled: undefined });
+    if (index < 0) get().playAt(0);
+  },
+
+  enqueue: (incoming) => {
+    if (!incoming.length) return;
+
+    const tracks = new Map(get().tracks);
+    for (const track of incoming) tracks.set(track.id, track);
+
+    const queue = get().queue;
+    const fresh = incoming.map((t) => t.id).filter((id) => !queue.includes(id));
+    set({ tracks, queue: [...queue, ...fresh] });
+
+    if (get().index < 0 && fresh.length) get().playAt(0);
+  },
+
   playAt: (index) => {
     const { queue, tracks } = get();
     const id = queue[index];
@@ -145,6 +192,7 @@ export const usePlayer = create<State & Actions>((set, get) => ({
     set({ index, error: undefined, position: 0, duration: track.duration ?? 0 });
     engine.load(`takt://media/${track.id}`);
     void engine.play();
+    window.takt.notePlayed(track.id);
   },
 
   playId: (id) => {

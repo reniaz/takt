@@ -67,6 +67,62 @@ describe('queue', () => {
   });
 });
 
+describe('queue actions', () => {
+  it('playNow replaces the queue and starts where told', () => {
+    usePlayer.getState().addTracks(TRACKS);
+    usePlayer.getState().playNow(TRACKS.slice(2, 5), 1);
+
+    expect(ids()).toEqual(['t3', 't4', 't5']);
+    expect(usePlayer.getState().index).toBe(1);
+    expect(ids()[usePlayer.getState().index]).toBe('t4');
+  });
+
+  it('playNext inserts straight after the current track', () => {
+    usePlayer.getState().addTracks(TRACKS.slice(0, 3));
+    usePlayer.getState().playAt(0);
+
+    usePlayer.getState().playNext([TRACKS[5]!]);
+
+    expect(ids()).toEqual(['t1', 't6', 't2', 't3']);
+    // The cursor stays on what is playing, not on what was inserted.
+    expect(ids()[usePlayer.getState().index]).toBe('t1');
+  });
+
+  it('playNext moves a track already queued rather than duplicating it', () => {
+    usePlayer.getState().addTracks(TRACKS.slice(0, 4));
+    usePlayer.getState().playAt(0);
+
+    usePlayer.getState().playNext([TRACKS[3]!]);
+
+    expect(ids()).toEqual(['t1', 't4', 't2', 't3']);
+    expect(ids().filter((id) => id === 't4')).toHaveLength(1);
+  });
+
+  it('playNext on an empty queue starts playing', () => {
+    usePlayer.getState().playNext(TRACKS.slice(0, 2));
+
+    expect(ids()).toEqual(['t1', 't2']);
+    expect(usePlayer.getState().index).toBe(0);
+  });
+
+  it('enqueue appends without disturbing what is playing', () => {
+    usePlayer.getState().addTracks(TRACKS.slice(0, 3));
+    usePlayer.getState().playAt(1);
+
+    usePlayer.getState().enqueue([TRACKS[4]!, TRACKS[5]!]);
+
+    expect(ids()).toEqual(['t1', 't2', 't3', 't5', 't6']);
+    expect(usePlayer.getState().index).toBe(1);
+  });
+
+  it('enqueue ignores what is already in the queue', () => {
+    usePlayer.getState().addTracks(TRACKS.slice(0, 3));
+    usePlayer.getState().enqueue([TRACKS[0]!, TRACKS[4]!]);
+
+    expect(ids()).toEqual(['t1', 't2', 't3', 't5']);
+  });
+});
+
 describe('shuffle', () => {
   it('leaves the current track where it is', () => {
     usePlayer.getState().addTracks(TRACKS);

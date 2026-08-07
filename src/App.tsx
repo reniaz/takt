@@ -8,6 +8,7 @@ import { SettingsPage } from './components/settings/SettingsPage';
 import { Sidebar } from './components/Sidebar';
 import { TitleBar } from './components/TitleBar';
 import { TrackList } from './components/TrackList';
+import { useLibrary } from './state/library';
 import { usePlayer } from './state/player';
 import { useMediaSession } from './state/useMediaSession';
 import { useShortcuts } from './state/useShortcuts';
@@ -16,11 +17,15 @@ import { useTheme } from './themes/useTheme';
 export function App() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [eqOpen, setEqOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [version, setVersion] = useState('');
   const [dropping, setDropping] = useState(false);
 
-  const addTracks = usePlayer((s) => s.addTracks);
+  const view = useLibrary((s) => s.view);
+  const setView = useLibrary((s) => s.setView);
+  const init = useLibrary((s) => s.init);
+  const merge = useLibrary((s) => s.merge);
+  const setScan = useLibrary((s) => s.setScan);
+  const enqueue = usePlayer((s) => s.enqueue);
 
   useTheme();
   useShortcuts();
@@ -32,19 +37,25 @@ export function App() {
     // handler 404'd and Chromium rendered the error body" — both finish loading. Saying so
     // from here is the only signal that means the app is actually up.
     window.takt.signalReady();
-    // Files handed over by Explorer, either at launch or from a second instance.
-    return window.takt.onOpenFiles((tracks) => addTracks(tracks, true));
-  }, [addTracks]);
+    void init();
+  }, [init]);
+
+  useEffect(() => window.takt.onScanProgress(setScan), [setScan]);
+
+  useEffect(() => window.takt.onOpenFiles((tracks) => {
+    merge(tracks);
+    enqueue(tracks);
+  }), [merge, enqueue]);
 
   useEffect(() => {
-    const onQueueKey = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'q') {
         e.preventDefault();
         setQueueOpen((open) => !open);
       }
     };
-    window.addEventListener('keydown', onQueueKey);
-    return () => window.removeEventListener('keydown', onQueueKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   return (
@@ -54,25 +65,39 @@ export function App() {
        * Without preventDefault on dragover, Chromium navigates the window to the dropped
        * file — which unloads the app and leaves a bare audio player behind.
        */
-      onDragOver={(e) => { e.preventDefault(); setDropping(true); }}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        setDropping(true);
+      }}
       onDragLeave={(e) => { if (e.currentTarget === e.target) setDropping(false); }}
-      onDrop={(e) => {
+      onDrop={async (e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
         e.preventDefault();
         setDropping(false);
-        // The renderer is sandboxed and cannot read a path off a File; main resolves
-        // them, so this is left to the Explorer hand-off path for now.
+
+        /*
+         * `webUtils.getPathForFile` is the only way to get a path from a dropped File under
+         * context isolation — `File.path` was removed in Electron 32. Main expands folders
+         * and indexes whatever it finds.
+         */
+        const paths = [...e.dataTransfer.files].map((file) => window.takt.pathForFile(file)).filter(Boolean);
+        if (!paths.length) return;
+
+        const tracks = await window.takt.addPaths(paths);
+        merge(tracks);
+        enqueue(tracks);
       }}
     >
       <TitleBar />
 
       <div className="app__body">
-        <Sidebar
-          settingsOpen={settingsOpen}
-          onOpenSettings={() => setSettingsOpen((open) => !open)}
-        />
+        <Sidebar />
 
         <main className="app__main">
-          {settingsOpen ? <SettingsPage onClose={() => setSettingsOpen(false)} /> : <TrackList />}
+          {view.kind === 'settings'
+            ? <SettingsPage onClose={() => setView({ kind: 'library' })} />
+            : <TrackList />}
         </main>
 
         {queueOpen && <Queue onClose={() => setQueueOpen(false)} />}
@@ -81,7 +106,7 @@ export function App() {
       {eqOpen && (
         <Equalizer
           onClose={() => setEqOpen(false)}
-          onOpenSettings={() => { setSettingsOpen(true); setEqOpen(false); }}
+          onOpenSettings={() => { setView({ kind: 'settings' }); setEqOpen(false); }}
         />
       )}
 
