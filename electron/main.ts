@@ -47,6 +47,26 @@ const DEV_URL = 'http://localhost:5273';
 let mainWindow: BrowserWindow | undefined;
 
 /*
+ * The app's identity, set explicitly rather than inferred.
+ *
+ * Electron takes the name from the `package.json` next to the entry point. Launched as
+ * `electron electron/dist/main.cjs` there is none, so it falls back to "Electron" — which
+ * is not only the window and taskbar title but also the userData folder, meaning a dev run
+ * wrote its library to %APPDATA%\Electron while a packaged one used %APPDATA%\Takt. Two
+ * different databases depending on how the app happened to be started.
+ *
+ * Must be before `app.ready`: the userData path is resolved once, on first use.
+ */
+app.setName('Takt');
+
+/*
+ * Windows groups taskbar entries, notifications and jump lists by this id. Without it a
+ * dev run is filed under Electron's own identity alongside every other Electron app.
+ * Matches `appId` in electron-builder.yml so dev and installed copies agree.
+ */
+if (process.platform === 'win32') app.setAppUserModelId('dev.takt.player');
+
+/*
  * Must happen before `app.ready`, and before anything else touches `protocol`.
  */
 registerScheme();
@@ -86,6 +106,9 @@ function createWindow() {
     minWidth: 900,
     minHeight: 560,
     show: false,
+    // What Alt-Tab and the taskbar show until the renderer sets `document.title`. Without
+    // it the window announces itself as "Electron" for the first moment of every launch.
+    title: 'Takt',
     // Frameless: the titlebar is part of the theme, so a Gruvbox Takt is Gruvbox all the
     // way to the top edge. `resizable` stays true or Windows Snap and drag-to-maximize
     // stop working.
