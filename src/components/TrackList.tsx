@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { formatTime } from '../audio/time';
+import {
+  albumKey, byDiscAndTrack, creditedArtist, filterTracks, recentlyPlayed, sortTracks,
+  type SortKey,
+} from '../state/browse';
 import { playlistTracks, useLibrary } from '../state/library';
 import { usePlayer } from '../state/player';
+import { AlbumHeader } from './Browse';
 import { ContextMenu, type MenuItem, type MenuState } from './ContextMenu';
 import { Icon } from './Icon';
 import { NamePrompt } from './NamePrompt';
@@ -10,6 +15,20 @@ import { PlaylistArt } from './PlaylistArt';
 
 import type { QueueSource } from '../state/player';
 import type { TrackInfo } from '../../electron/preload';
+
+/** An album's tracks in their recorded order. */
+function albumTracks(key: string, all: Map<string, TrackInfo>) {
+  return [...all.values()].filter((t) => albumKey(t) === key).sort(byDiscAndTrack);
+}
+
+/** Everything credited to one artist, grouped by record rather than run together. */
+function artistTracks(name: string, all: Map<string, TrackInfo>) {
+  return [...all.values()]
+    .filter((t) => creditedArtist(t) === name)
+    .sort((a, b) => (a.year ?? 0) - (b.year ?? 0)
+      || (a.album ?? '').localeCompare(b.album ?? '', undefined, { numeric: true })
+      || byDiscAndTrack(a, b));
+}
 
 export function TrackList() {
   const view = useLibrary((s) => s.view);
@@ -31,9 +50,34 @@ export function TrackList() {
   const [selected, setSelected] = useState<string[]>([]);
   const [naming, setNaming] = useState<string[] | undefined>(undefined);
 
+  const query = useLibrary((s) => s.query);
+  const sort = useLibrary((s) => s.sort);
+  const toggleSort = useLibrary((s) => s.toggleSort);
+
   const listId = view.kind === 'playlist' ? view.id : undefined;
-  const tracks: TrackInfo[] = listId ? playlistTracks(listId) : [...all.values()];
   const playlist = listId ? playlists.find((p) => p.id === listId) : undefined;
+
+  /*
+   * A playlist and an album are ordered by their own logic; the library is not.
+   *
+   * Sorting is applied only where there is no inherent order to destroy — imposing "by
+   * title" on a record would scramble the sequence it was meant to be heard in, and on a
+   * playlist it would throw away the order someone arranged by hand.
+   */
+  const ordered = view.kind === 'playlist'
+    ? playlistTracks(view.id)
+    : view.kind === 'album'
+      ? albumTracks(view.key, all)
+      : view.kind === 'artist'
+        ? artistTracks(view.name, all)
+        : view.kind === 'recent'
+          ? recentlyPlayed([...all.values()])
+          : sortTracks([...all.values()], sort);
+
+  const keepsOwnOrder = view.kind === 'playlist' || view.kind === 'album'
+    || view.kind === 'artist' || view.kind === 'recent';
+
+  const tracks: TrackInfo[] = filterTracks(ordered, query);
 
   const here: QueueSource = listId ? { kind: 'playlist', id: listId } : { kind: 'library' };
 
@@ -71,7 +115,9 @@ export function TrackList() {
     [all],
   );
 
-  if (!tracks.length && !playlist) return <EmptyLibrary />;
+  if (!tracks.length && !playlist) {
+    return query ? <NoMatches query={query} /> : <EmptyLibrary />;
+  }
 
   /** Acting on a row that is not selected acts on that row alone, as every file list does. */
   const targets = (id: string) => (selected.includes(id) ? selected : [id]);
@@ -123,6 +169,20 @@ export function TrackList() {
   return (
     <div className="tracklist">
       {playlist && <PlaylistHeader id={playlist.id} tracks={tracks} source={here} />}
+      {view.kind === 'album' && <AlbumHeader albumKey={view.key} />}
+      {view.kind === 'artist' && <SimpleHeader kind="Artist" title={view.name} tracks={tracks} source={here} />}
+      {view.kind === 'recent' && <SimpleHeader kind="Recently played" title="Recently played" tracks={tracks} source={here} />}
+
+      {!keepsOwnOrder && (
+        <div className="cols" role="row">
+          <span />
+          <span />
+          <SortHeader label="Title" sortKey="title" sort={sort} onSort={toggleSort} />
+          <SortHeader label="Album" sortKey="album" sort={sort} onSort={toggleSort} />
+          <SortHeader label="Plays" sortKey="plays" sort={sort} onSort={toggleSort} align="right" />
+          <SortHeader label="Time" sortKey="duration" sort={sort} onSort={toggleSort} align="right" />
+        </div>
+      )}
 
       {!tracks.length && playlist && (
         <div className="empty empty--inline">
@@ -201,6 +261,7 @@ export function TrackList() {
               </div>
 
               <div className="row__album">{track.album ?? ''}</div>
+              <div className="row__plays">{track.playCount || ''}</div>
               <div className="row__time">{track.duration ? formatTime(track.duration) : ''}</div>
             </div>
           );
@@ -348,6 +409,89 @@ function SelectionBar({
  */
 function Bars() {
   return <span className="bars" aria-label="Playing"><i /><i /><i /><i /></span>;
+}
+
+/** A column header that sorts. The arrow only appears on the column actually in effect. */
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  align = 'left',
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: 'asc' | 'desc' };
+  onSort: (key: SortKey) => void;
+  align?: 'left' | 'right';
+}) {
+  const active = sort.key === sortKey;
+
+  return (
+    <button
+      type="button"
+      className={`col ${active ? 'col--active' : ''} ${align === 'right' ? 'col--right' : ''}`}
+      onClick={() => onSort(sortKey)}
+      aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      {label}
+      {active && <Icon name={sort.dir === 'asc' ? 'sortAsc' : 'sortDesc'} size={12} />}
+    </button>
+  );
+}
+
+/** Header for the views that have a name and a track list but nothing to edit. */
+function SimpleHeader({
+  kind,
+  title,
+  tracks,
+  source,
+}: {
+  kind: string;
+  title: string;
+  tracks: TrackInfo[];
+  source: QueueSource;
+}) {
+  const goBack = useLibrary((s) => s.goBack);
+  const previous = useLibrary((s) => s.previous);
+  const playNow = usePlayer((s) => s.playNow);
+  const enqueue = usePlayer((s) => s.enqueue);
+
+  return (
+    <header className="plhead plhead--simple">
+      {previous && (
+        <button type="button" className="ctl plhead__back" onClick={goBack} aria-label="Back" title="Back">
+          <Icon name="back" size={18} />
+        </button>
+      )}
+      <div className="plhead__text">
+        <div className="plhead__kind">{kind}</div>
+        <h1>{title}</h1>
+        <div className="plhead__meta">
+          {tracks.length} track{tracks.length === 1 ? '' : 's'}
+          {' · '}
+          {formatTime(tracks.reduce((sum, t) => sum + (t.duration ?? 0), 0))}
+        </div>
+        <div className="plhead__actions">
+          <button type="button" className="btn btn--primary" disabled={!tracks.length} onClick={() => playNow(tracks, 0, source)}>
+            <Icon name="play" size={14} /> Play
+          </button>
+          <button type="button" className="btn" disabled={!tracks.length} onClick={() => enqueue(tracks)}>
+            <Icon name="queue" size={14} /> Add to queue
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function NoMatches({ query }: { query: string }) {
+  return (
+    <div className="empty">
+      <h2>Nothing matches “{query}”</h2>
+      <p>Try fewer words — every one of them has to match.</p>
+    </div>
+  );
 }
 
 function EmptyLibrary() {

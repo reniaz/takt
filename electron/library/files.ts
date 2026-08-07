@@ -124,12 +124,21 @@ export function toTrackInfo(row: TrackRow): TrackInfo {
     path: row.path,
     title: row.title,
     ...(row.artist ? { artist: row.artist } : undefined),
+    ...(row.albumArtist ? { albumArtist: row.albumArtist } : undefined),
     ...(row.album ? { album: row.album } : undefined),
+    ...(row.year ? { year: row.year } : undefined),
+    ...(row.trackNo ? { trackNo: row.trackNo } : undefined),
+    ...(row.discNo ? { discNo: row.discNo } : undefined),
+    ...(row.genre ? { genre: row.genre } : undefined),
     ...(row.duration ? { duration: row.duration } : undefined),
     ...(row.artwork ? { artwork: row.artwork } : undefined),
-    // Zero is a real gain, so these are tested for null rather than for truthiness.
+    // Zero is a real gain, and zero plays is a real count, so these are tested against
+    // null rather than for truthiness.
     ...(row.rgTrack !== null ? { rgTrack: row.rgTrack } : undefined),
     ...(row.rgAlbum !== null ? { rgAlbum: row.rgAlbum } : undefined),
+    addedAt: row.addedAt,
+    playCount: row.playCount,
+    ...(row.lastPlayedAt !== null ? { lastPlayedAt: row.lastPlayedAt } : undefined),
   };
 }
 

@@ -101,13 +101,27 @@ export type TrackInfo = {
   path: string;
   title: string;
   artist?: string;
+  /**
+   * Who the *record* is by, which is not always who the track is by.
+   *
+   * The distinction is what keeps a compilation or a guest appearance from splintering
+   * into one album per featured artist.
+   */
+  albumArtist?: string;
   album?: string;
+  year?: number;
+  trackNo?: number;
+  discNo?: number;
+  genre?: string;
   duration?: number;
   /** Filename under the artwork cache, served as `takt://art/<artwork>`. */
   artwork?: string;
   /** ReplayGain, in dB, as tagged. Absent means the file carries no gain information. */
   rgTrack?: number;
   rgAlbum?: number;
+  addedAt?: number;
+  playCount?: number;
+  lastPlayedAt?: number;
 };
 
 export type PlaylistInfo = {

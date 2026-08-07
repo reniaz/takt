@@ -1,8 +1,38 @@
 import { create } from 'zustand';
 
-import { usePlayer } from './player';
+import { onTrackStarted, usePlayer } from './player';
 
+import type { Sort, SortKey } from './browse';
 import type { PlaylistInfo, TrackInfo } from '../../electron/preload';
+
+/*
+ * Sort order is kept apart from the audio settings blob.
+ *
+ * It belongs to how the library is being looked at, not to how anything sounds, and
+ * threading one more UI preference through the player store's persistence would put it
+ * where nobody would look for it.
+ */
+const SORT_KEY = 'takt-sort';
+const DEFAULT_SORT: Sort = { key: 'title', dir: 'asc' };
+
+function loadSort(): Sort {
+  try {
+    const raw = localStorage.getItem(SORT_KEY);
+    if (!raw) return DEFAULT_SORT;
+    const parsed = JSON.parse(raw) as Partial<Sort>;
+    return parsed.key && parsed.dir ? { key: parsed.key, dir: parsed.dir } : DEFAULT_SORT;
+  } catch {
+    return DEFAULT_SORT;
+  }
+}
+
+function saveSort(sort: Sort) {
+  try {
+    localStorage.setItem(SORT_KEY, JSON.stringify(sort));
+  } catch {
+    /* storage full or blocked; the order is not worth interrupting anything over */
+  }
+}
 
 /**
  * The library and playlists, mirrored from the database.
@@ -15,6 +45,11 @@ import type { PlaylistInfo, TrackInfo } from '../../electron/preload';
 
 export type View =
   | { kind: 'library' }
+  | { kind: 'recent' }
+  | { kind: 'albums' }
+  | { kind: 'artists' }
+  | { kind: 'album'; key: string }
+  | { kind: 'artist'; name: string }
   | { kind: 'playlist'; id: string }
   | { kind: 'settings' };
 
@@ -22,6 +57,10 @@ type State = {
   tracks: Map<string, TrackInfo>;
   playlists: PlaylistInfo[];
   view: View;
+  /** Where "back" goes from an album or artist, so drilling in is reversible. */
+  previous: View | undefined;
+  query: string;
+  sort: Sort;
   scan: { done: number; total: number } | undefined;
   loaded: boolean;
 };
@@ -31,14 +70,21 @@ type Actions = {
   merge: (tracks: readonly TrackInfo[]) => void;
   setPlaylists: (playlists: PlaylistInfo[]) => void;
   setView: (view: View) => void;
+  goBack: () => void;
+  setQuery: (query: string) => void;
+  toggleSort: (key: SortKey) => void;
   setScan: (scan: { done: number; total: number } | undefined) => void;
   removeTracks: (ids: readonly string[]) => Promise<void>;
+  notePlayed: (id: string) => void;
 };
 
 export const useLibrary = create<State & Actions>((set, get) => ({
   tracks: new Map(),
   playlists: [],
   view: { kind: 'library' },
+  previous: undefined,
+  query: '',
+  sort: loadSort(),
   scan: undefined,
   loaded: false,
 
@@ -61,8 +107,52 @@ export const useLibrary = create<State & Actions>((set, get) => ({
   },
 
   setPlaylists: (playlists) => set({ playlists }),
-  setView: (view) => set({ view }),
+
+  setView: (view) => {
+    const current = get().view;
+    set({
+      view,
+      // Only drilling in is worth a back step. Remembering "settings" as the place to
+      // return to from an album makes back mean something nobody intended.
+      previous: view.kind === 'album' || view.kind === 'artist' ? current : undefined,
+      // A search belongs to the list it was typed over.
+      query: '',
+    });
+  },
+
+  goBack: () => set({ view: get().previous ?? { kind: 'library' }, previous: undefined, query: '' }),
+
+  setQuery: (query) => set({ query }),
+
+  toggleSort: (key) => {
+    const { sort } = get();
+    // Clicking the active column flips direction; clicking another starts it ascending,
+    // which is what every file list does.
+    const next: Sort = sort.key === key
+      ? { key, dir: sort.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: 'asc' };
+
+    set({ sort: next });
+    saveSort(next);
+  },
+
   setScan: (scan) => set({ scan }),
+
+  /**
+   * Bumps the local copy when a track starts.
+   *
+   * Main owns the durable count, but it does not push the updated row back — so without
+   * this the "plays" column and the recently-played list would show whatever was true when
+   * the library was last loaded, which is to say never the track you just played.
+   */
+  notePlayed: (id) => {
+    const track = get().tracks.get(id);
+    if (!track) return;
+
+    const tracks = new Map(get().tracks);
+    tracks.set(id, { ...track, playCount: (track.playCount ?? 0) + 1, lastPlayedAt: Date.now() });
+    set({ tracks });
+  },
 
   removeTracks: async (ids) => {
     const remaining = await window.takt.removeTracks([...ids]);
@@ -74,6 +164,9 @@ export const useLibrary = create<State & Actions>((set, get) => ({
     });
   },
 }));
+
+/* Keeps the local play counts current without the library having to watch the player. */
+onTrackStarted((id) => useLibrary.getState().notePlayed(id));
 
 /** Tracks of a playlist, in its stored order, skipping any whose file has gone. */
 export function playlistTracks(id: string) {

@@ -1,6 +1,7 @@
 import { currentTrack, usePlayer } from '../state/player';
 import { Icon } from './Icon';
 import { SeekBar } from './SeekBar';
+import { SleepTimer } from './SleepTimer';
 
 export function PlayerBar({
   onToggleQueue,
@@ -102,6 +103,8 @@ export function PlayerBar({
         >
           <Icon name="equalizer" size={18} />
         </button>
+
+        <SleepTimer />
 
         <VolumeControl />
 

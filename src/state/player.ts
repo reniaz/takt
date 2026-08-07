@@ -13,6 +13,34 @@ export type Repeat = 'off' | 'queue' | 'track';
 
 export const engine = new Engine();
 
+/*
+ * Told whenever a track actually starts.
+ *
+ * The library store needs this to keep its play counts current, but it already imports
+ * this module — importing it back would make a cycle. A callback it registers at load
+ * inverts the dependency, and keeps "a track started" a fact this module states rather
+ * than one the library has to infer from watching the index change (which would also fire
+ * for a restored queue that never played anything).
+ */
+let trackStarted: ((id: string) => void) | undefined;
+
+export function onTrackStarted(fn: (id: string) => void) {
+  trackStarted = fn;
+}
+
+/**
+ * Consulted when a track finishes on its own, before the queue moves.
+ *
+ * Returning true means something else has taken over — the sleep timer stopping playback —
+ * and the queue must not advance past it. Same inversion as `trackStarted`: the sleep
+ * store already imports this module.
+ */
+let trackEnded: ((queueExhausted: boolean) => boolean) | undefined;
+
+export function onTrackEnded(fn: (queueExhausted: boolean) => boolean) {
+  trackEnded = fn;
+}
+
 /**
  * Shuffles everything after `keep` in place, Fisher–Yates.
  *
@@ -93,6 +121,7 @@ type Actions = {
   playAt: (index: number) => void;
   playId: (id: string) => void;
   toggle: () => void;
+  pauseNow: () => void;
   next: (manual?: boolean) => void;
   previous: () => void;
   seek: (seconds: number) => void;
@@ -240,6 +269,7 @@ export const usePlayer = create<State & Actions>((set, get) => ({
     engine.load(`takt://media/${track.id}`, gainFor(track, get().replayGain, get().replayGainPreamp, get().replayGainUntagged));
     void engine.play();
     window.takt.notePlayed(track.id);
+    trackStarted?.(track.id);
 
     armNext(get());
   },
@@ -257,9 +287,21 @@ export const usePlayer = create<State & Actions>((set, get) => ({
     void engine.toggle();
   },
 
+  pauseNow: () => {
+    engine.pause();
+    set({ isPlaying: false });
+  },
+
   next: (manual = false) => {
     const { queue, index, repeat } = get();
     if (!queue.length) return;
+
+    // A track running out is the sleep timer's cue. Pressing next is not — that is someone
+    // still listening, and stopping on them would be perverse.
+    if (!manual) {
+      const exhausted = repeat === 'off' && index + 1 >= queue.length;
+      if (trackEnded?.(exhausted)) return;
+    }
 
     // Repeat-one only auto-repeats. Pressing next is an explicit request to move on, and
     // trapping someone on one track because a mode is set is never what they meant.
@@ -564,7 +606,10 @@ engine.on('advanced', () => {
   const track = id ? state.tracks.get(id) : undefined;
 
   usePlayer.setState({ index: at, position: 0, duration: track?.duration ?? 0, error: undefined });
-  if (id) window.takt.notePlayed(id);
+  if (id) {
+    window.takt.notePlayed(id);
+    trackStarted?.(id);
+  }
 
   armNext(usePlayer.getState());
 });

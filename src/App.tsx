@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { Albums, Artists } from './components/Browse';
 import { Equalizer } from './components/Equalizer';
 import { Icon } from './components/Icon';
 import { PlayerBar } from './components/PlayerBar';
 import { Queue } from './components/Queue';
 import { Resizer } from './components/Resizer';
+import { SearchBar } from './components/SearchBar';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { Sidebar } from './components/Sidebar';
 import { TitleBar } from './components/TitleBar';
@@ -105,15 +107,18 @@ export function App() {
       }}
     >
       <TitleBar />
+      <SearchBar />
 
       <div className="app__body" style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
         <Sidebar />
         <Resizer />
 
         <main className="app__main" ref={mainRef}>
-          {view.kind === 'settings'
-            ? <SettingsPage onClose={() => setView({ kind: 'library' })} />
-            : <TrackList />}
+          {view.kind === 'settings' && <SettingsPage onClose={() => setView({ kind: 'library' })} />}
+          {view.kind === 'albums' && <Albums />}
+          {view.kind === 'artists' && <Artists />}
+          {/* Everything else is a list of tracks; TrackList works out which. */}
+          {view.kind !== 'settings' && view.kind !== 'albums' && view.kind !== 'artists' && <TrackList />}
         </main>
 
         {queueOpen && <Queue onClose={() => setQueueOpen(false)} />}

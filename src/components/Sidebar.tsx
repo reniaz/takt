@@ -57,6 +57,34 @@ export function Sidebar() {
           <span>All tracks</span>
           <span className="navitem__count">{trackCount || ''}</span>
         </button>
+
+        {/* Drilling into one of these sets `previous`, so the album view can go back. */}
+        <button
+          type="button"
+          className={`navitem ${view.kind === 'albums' || view.kind === 'album' ? 'navitem--active' : ''}`}
+          onClick={() => setView({ kind: 'albums' })}
+        >
+          <Icon name="album" size={16} />
+          <span>Albums</span>
+        </button>
+
+        <button
+          type="button"
+          className={`navitem ${view.kind === 'artists' || view.kind === 'artist' ? 'navitem--active' : ''}`}
+          onClick={() => setView({ kind: 'artists' })}
+        >
+          <Icon name="artist" size={16} />
+          <span>Artists</span>
+        </button>
+
+        <button
+          type="button"
+          className={`navitem ${view.kind === 'recent' ? 'navitem--active' : ''}`}
+          onClick={() => setView({ kind: 'recent' })}
+        >
+          <Icon name="clock" size={16} />
+          <span>Recently played</span>
+        </button>
       </div>
 
       <div className="sidebar__section">

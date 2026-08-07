@@ -64,9 +64,10 @@ button {
  * content is pushed down rather than covered, and there is no second length to keep in
  * sync with the first.
  */
+/* Title bar, search, content, player bar. */
 .app {
   display: grid;
-  grid-template-rows: var(--titlebar-height) 1fr auto;
+  grid-template-rows: var(--titlebar-height) auto 1fr auto;
   height: 100%;
   background: var(--takt-bg);
   transition: grid-template-rows 150ms ease-out;
@@ -209,8 +210,8 @@ body.is-resizing {
  * pixels to aim at, and comes back when the cursor reaches them — pushing the app down
  * while it is there rather than covering it, so nothing is ever hidden underneath.
  */
-.app:has(.titlebar-host--hidden) { grid-template-rows: var(--titlebar-peek) 1fr auto; }
-.app:has(.titlebar-host--revealed) { grid-template-rows: var(--titlebar-height) 1fr auto; }
+.app:has(.titlebar-host--hidden) { grid-template-rows: var(--titlebar-peek) auto 1fr auto; }
+.app:has(.titlebar-host--revealed) { grid-template-rows: var(--titlebar-height) auto 1fr auto; }
 
 .titlebar-host--hidden {
   height: var(--titlebar-peek);
@@ -376,12 +377,22 @@ body.is-resizing {
 /* ---------- playlist header ---------- */
 
 .plhead {
+  position: relative;
   display: flex;
   gap: 18px;
   align-items: flex-end;
   padding: 22px 12px 24px;
 
   h1 { margin: 2px 0 6px; font-size: 26px; font-weight: 600; line-height: 1.15; }
+
+  /* No cover to sit beside, so the text starts where the cover would have been. */
+  &--simple { padding-top: 18px; }
+}
+
+.plhead__back {
+  position: absolute;
+  top: 10px;
+  left: 4px;
 }
 
 /* The cover is the control for changing it — there is nowhere else that would live. */
@@ -575,14 +586,88 @@ body.is-resizing {
   letter-spacing: 0.08em;
 }
 
+/* ---------- search ---------- */
+
+.search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  color: var(--takt-text-faint);
+  background: var(--takt-surface);
+  border-bottom: 1px solid var(--takt-border);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    max-width: 420px;
+    padding: 5px 0;
+    font: inherit;
+    color: var(--takt-text);
+    background: none;
+    border: 0;
+    outline: none;
+
+    &::placeholder { color: var(--takt-text-faint); }
+  }
+}
+
+.search__clear {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--takt-text-faint);
+  border-radius: 50%;
+
+  &:hover { color: var(--takt-text); background: var(--takt-raised); }
+}
+
 /* ---------- track list ---------- */
 
 .tracklist { padding: 8px 10px 14px; }
 
+/*
+ * The header row and the track rows share a column template. Anything added to one has to
+ * be added to the other or the headings stop lining up with what they label.
+ */
+.cols,
+.row {
+  display: grid;
+  grid-template-columns: 30px 34px minmax(0, 1fr) minmax(0, 0.7fr) 52px 48px;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 10px;
+}
+
+.cols {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-bottom: 7px;
+  background: var(--takt-bg);
+  border-bottom: 1px solid var(--takt-border);
+}
+
+.col {
+  padding: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--takt-text-faint);
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+
+  &:hover { color: var(--takt-text-muted); }
+  &--active { color: var(--takt-accent); }
+  &--right { justify-content: flex-end; }
+}
+
 .row {
   user-select: none;
-  display: grid;
-  grid-template-columns: 30px 34px minmax(0, 1fr) minmax(0, 0.7fr) 48px;
   gap: 12px;
   align-items: center;
   padding: 6px 10px;
@@ -659,12 +744,115 @@ body.is-resizing {
 .row__sub,
 .row__album { font-size: 11px; color: var(--takt-text-muted); }
 
+.row__plays,
 .row__time {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--takt-text-muted);
   text-align: right;
 }
+
+.row__plays { color: var(--takt-text-faint); }
+
+/* ---------- album grid ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+  padding: 18px;
+}
+
+.card {
+  cursor: pointer;
+
+  &:hover .card__title { color: var(--takt-accent); }
+}
+
+.card__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  aspect-ratio: 1;
+  margin-bottom: 8px;
+  color: var(--takt-text-faint);
+  background: var(--takt-raised);
+  border-radius: 8px;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+}
+
+.card__play {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: var(--takt-on-accent);
+  background: var(--takt-accent);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px var(--takt-shadow);
+  opacity: 0;
+  transition: opacity 120ms, transform 120ms;
+  transform: translateY(4px);
+
+  .card:hover &,
+  &:focus-visible { opacity: 1; transform: none; }
+}
+
+.card__title,
+.card__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card__title { font-weight: 500; transition: color 120ms; }
+.card__sub { font-size: 11px; color: var(--takt-text-muted); }
+
+/* ---------- artist list ---------- */
+
+.artists { padding: 10px 12px 18px; }
+
+.artistrow {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 10px;
+  color: var(--takt-text-muted);
+  text-align: left;
+  border-radius: 8px;
+
+  &:hover { color: var(--takt-text); background: var(--takt-surface-hover); }
+}
+
+.artistrow__art {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 40px;
+  height: 40px;
+  color: var(--takt-text-faint);
+  background: var(--takt-raised);
+  border-radius: 50%;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+}
+
+.artistrow__name {
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--takt-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artistrow__meta { font-size: 11px; color: var(--takt-text-faint); }
 
 /*
  * The playing indicator: the app mark's 3-1-2-1 stroke pattern, animated. Same shape as
@@ -839,6 +1027,20 @@ body.is-resizing {
 
     &:hover:not(:disabled) { color: var(--takt-on-accent); background: var(--takt-accent-hover); }
   }
+
+  /* Grows to fit a countdown, so the timer is never a thing you set and have to trust. */
+  &--wide {
+    gap: 5px;
+    width: auto;
+    padding: 0 10px;
+    grid-auto-flow: column;
+    border-radius: 14px;
+  }
+}
+
+.ctl__label {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .ctl__badge {

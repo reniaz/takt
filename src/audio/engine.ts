@@ -562,6 +562,45 @@ export class Engine {
     this.applyPreGain();
   }
 
+  /**
+   * Fades to silence over `seconds`, then pauses.
+   *
+   * Through the master gain rather than by pausing outright: waking to a track cut off
+   * mid-bar is worse than not having set a timer at all. The gain is restored afterwards
+   * so pressing play does not start silently.
+   *
+   * @returns a cancel function, for a timer dismissed mid-fade.
+   */
+  fadeOutAndPause(seconds: number) {
+    const context = this.context;
+    const master = this.master;
+
+    if (!context || !master) {
+      this.pause();
+      return () => {};
+    }
+
+    const now = context.currentTime;
+    const from = this.volume ** VOLUME_CURVE;
+
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(from, now);
+    // Exponential cannot reach zero, so it lands just under audibility and the pause
+    // finishes the job.
+    master.gain.exponentialRampToValueAtTime(Math.max(0.0001, from * 0.0001), now + seconds);
+
+    const timer = setTimeout(() => {
+      this.pause();
+      this.applyVolume();
+    }, seconds * 1000);
+
+    return () => {
+      clearTimeout(timer);
+      master.gain.cancelScheduledValues(context.currentTime);
+      this.applyVolume();
+    };
+  }
+
   setReplayGain(db: number) {
     this.replayGainDb = db;
     const { rgGain } = this.deck;
