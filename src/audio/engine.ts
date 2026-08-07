@@ -227,9 +227,21 @@ export class Engine {
     this.master = master;
     this.analyser = analyser;
 
-    this.applyVolume();
-    this.applyPreGain();
-    this.applyBands();
+    /*
+     * Assigned, not ramped.
+     *
+     * Every AudioParam here starts at its own default — a GainNode at 1.0 — and the ramp
+     * helpers use `setTargetAtTime`, which *approaches* a target from wherever the
+     * parameter currently is. Using them for the initial values means the first moment of
+     * the first track plays at full volume and slides down to whatever the setting is: an
+     * audible spike, once per launch, exactly when the graph is built.
+     *
+     * Ramping is right for a change someone makes while listening, and wrong for saying
+     * what the values were all along.
+     */
+    master.gain.value = this.volume ** VOLUME_CURVE;
+    preGain.gain.value = dbToGain(this.preampDb);
+    this.filters.forEach((filter, i) => { filter.gain.value = this.gains[i] ?? 0; });
 
     const { rgGain } = this.deck;
     if (rgGain) rgGain.gain.value = dbToGain(this.replayGainDb);

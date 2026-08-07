@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { formatTime } from '../audio/time';
 import { useLibrary } from '../state/library';
@@ -25,6 +25,17 @@ export function NowPlayingScreen({ onClose }: { onClose: () => void }) {
   const next = usePlayer((s) => s.next);
   const previous = usePlayer((s) => s.previous);
 
+  /*
+   * The callback is held in a ref rather than depended on.
+   *
+   * `onClose` is created fresh on every render of the parent, and the parent re-renders
+   * about once a second while something is playing. Depending on it ran this effect's
+   * cleanup and body at that rate — leaving and re-entering fullscreen every second, which
+   * flickers the window, the taskbar, and clears the canvas underneath.
+   */
+  const close = useRef(onClose);
+  close.current = onClose;
+
   useEffect(() => {
     window.takt.setFullscreen(true);
 
@@ -32,7 +43,7 @@ export function NowPlayingScreen({ onClose }: { onClose: () => void }) {
       if (e.key !== 'Escape') return;
       // Stopped so the shortcut layer underneath does not also act on it.
       e.stopPropagation();
-      onClose();
+      close.current();
     };
 
     window.addEventListener('keydown', onKey, true);
@@ -41,7 +52,7 @@ export function NowPlayingScreen({ onClose }: { onClose: () => void }) {
       window.removeEventListener('keydown', onKey, true);
       window.takt.setFullscreen(false);
     };
-  }, [onClose]);
+  }, []);
 
   const progress = duration ? (position / duration) * 100 : 0;
 
