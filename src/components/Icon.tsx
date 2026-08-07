@@ -67,6 +67,7 @@ const ICONS = {
   sortAsc: <path d="M6 18V6M6 6 2.5 9.5M6 6l3.5 3.5M13 7h8M13 12h6M13 17h4" />,
   sortDesc: <path d="M6 6v12M6 18l-3.5-3.5M6 18l3.5-3.5M13 7h4M13 12h6M13 17h8" />,
   chevronRight: <path d="m9 5 7 7-7 7" />,
+  mini: <><rect x="2.5" y="4.5" width="19" height="15" rx="2" /><rect x="12" y="12" width="8" height="6" rx="1" /></>,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof ICONS;

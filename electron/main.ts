@@ -7,6 +7,7 @@ import { allPlaylists, allTracks } from './library/db';
 import { importPaths, isAudio, toTrackInfo } from './library/files';
 import { initLibrary } from './library/ipc';
 import { idFor, pathFor } from './library/registry';
+import { initMiniPlayer } from './miniPlayer';
 import { APP_ORIGIN, registerHandlers, registerScheme, setCoverResolver, setTrackResolver } from './protocol';
 import { closeStartupSplash, runStartupUpdate } from './startupUpdate';
 import { initUpdater } from './updater';
@@ -45,6 +46,21 @@ const RENDERER_ROOT = join(ROOT, 'build');
 const DEV_URL = 'http://localhost:5273';
 
 let mainWindow: BrowserWindow | undefined;
+
+/**
+ * Where every window of the app loads from.
+ *
+ * TAKT_FORCE_PROD_RENDERER makes an unpackaged run serve from `build/` over takt://,
+ * exactly as a packaged one does. That is what lets the smoke test exercise the custom
+ * protocol — including Range — before anything has been packaged.
+ *
+ * Shared so the mini player cannot end up on a different build from the main window, which
+ * in development would mean one of them silently showing yesterday's bundle.
+ */
+function rendererUrl() {
+  const useBundle = app.isPackaged || Boolean(process.env.TAKT_FORCE_PROD_RENDERER);
+  return useBundle ? `${APP_ORIGIN}/index.html` : DEV_URL;
+}
 
 /*
  * The app's identity, set explicitly rather than inferred.
@@ -175,14 +191,7 @@ function createWindow() {
     mainWindow = undefined;
   });
 
-  /*
-   * TAKT_FORCE_PROD_RENDERER makes an unpackaged run serve from `build/` over takt://,
-   * exactly as a packaged one does. That is what lets the smoke test exercise the custom
-   * protocol — including Range — before anything has been packaged, rather than only
-   * finding out on an installed copy.
-   */
-  const useBundle = app.isPackaged || Boolean(process.env.TAKT_FORCE_PROD_RENDERER);
-  void window.loadURL(useBundle ? `${APP_ORIGIN}/index.html` : DEV_URL);
+  void window.loadURL(rendererUrl());
 
   return window;
 }
@@ -216,6 +225,13 @@ if (isPrimary) {
 
     mainWindow = createWindow();
     initUpdater(() => mainWindow);
+    initMiniPlayer({
+      getWindow: () => mainWindow,
+      url: rendererUrl(),
+      icon: ICON,
+      assets: ASSETS,
+      preload: join(DIR_NAME, 'preload.cjs'),
+    });
 
     // Files this launch was started with, once the renderer exists to receive them.
     const pending = audioArgs(process.argv);

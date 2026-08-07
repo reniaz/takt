@@ -7,6 +7,7 @@ import { Icon } from './Icon';
 import { Modal } from './Modal';
 import { NamePrompt } from './NamePrompt';
 import { PlaylistArt } from './PlaylistArt';
+import { SearchBar } from './SearchBar';
 
 import type { TrackInfo } from '../../electron/preload';
 
@@ -47,6 +48,13 @@ export function Sidebar() {
 
   return (
     <nav className="sidebar">
+      {/*
+        At the top of the sidebar rather than in a band of its own across the window. A
+        full-width row pushed everything below it down and read as a second title bar; here
+        it sits with the navigation it filters and takes no height from the content.
+      */}
+      <SearchBar />
+
       <div className="sidebar__section">
         <button
           type="button"

@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
+import type { PlayerCommand, PlayerState } from './miniPlayer';
 import type { IpcRendererEvent } from 'electron';
+
+export type { PlayerCommand, PlayerState };
 
 /**
  * The entire surface the renderer gets. Nothing else crosses the boundary — the renderer
@@ -90,6 +93,22 @@ const api = {
   importPlaylist: (): Promise<{ playlists: PlaylistInfo[]; tracks: TrackInfo[] }> =>
     ipcRenderer.invoke('takt:playlist-import'),
   exportPlaylist: (id: string): Promise<boolean> => ipcRenderer.invoke('takt:playlist-export', id),
+
+  /*
+   * Mini player, tray and taskbar buttons.
+   *
+   * The main window publishes state; every other surface renders it and sends commands
+   * back. Only one window ever owns an audio element — two would play the same track
+   * twice, slightly out of step.
+   */
+  publishState: (state: PlayerState) => ipcRenderer.send('takt:player-state', state),
+  currentState: (): Promise<PlayerState> => ipcRenderer.invoke('takt:player-state-now'),
+  onPlayerState: (listener: (state: PlayerState) => void) => on('takt:player-state', listener),
+  sendCommand: (command: PlayerCommand) => ipcRenderer.send('takt:player-command', command),
+  onCommand: (listener: (command: PlayerCommand) => void) => on('takt:player-command', listener),
+  toggleMini: (): Promise<boolean> => ipcRenderer.invoke('takt:mini-toggle'),
+  closeMini: () => ipcRenderer.send('takt:mini-close'),
+  showMain: () => ipcRenderer.send('takt:show-main'),
 
   /* Updates */
   onUpdateReady: (listener: () => void) => on('takt:update-ready', listener),

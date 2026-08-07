@@ -124,6 +124,18 @@ export function installDevBridge() {
       return { playlists: await snapshot(), tracks: SAMPLE };
     },
     exportPlaylist: async () => true,
+    // The mini player is an Electron window; in a browser there is only the main app.
+    publishState: () => {},
+    currentState: async () => ({
+      title: 'Nothing playing', artist: '', album: '', artwork: '',
+      isPlaying: false, canPlay: false, position: 0, duration: 0,
+    }),
+    onPlayerState: noop,
+    sendCommand: () => {},
+    onCommand: noop,
+    toggleMini: async () => false,
+    closeMini: () => {},
+    showMain: () => {},
 
     onUpdateReady: noop,
     installUpdate: () => {},
@@ -131,3 +143,4 @@ export function installDevBridge() {
 
   console.info('[takt] dev bridge installed — metadata is fake and nothing will play');
 }
+

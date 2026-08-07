@@ -104,6 +104,16 @@ export function PlayerBar({
           <Icon name="equalizer" size={18} />
         </button>
 
+        <button
+          type="button"
+          className="ctl"
+          onClick={() => void window.takt.toggleMini()}
+          title="Mini player"
+          aria-label="Mini player"
+        >
+          <Icon name="mini" size={17} />
+        </button>
+
         <SleepTimer />
 
         <VolumeControl />

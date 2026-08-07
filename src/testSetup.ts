@@ -53,9 +53,21 @@ const stub = {
   clearPlaylistThumbnail: async () => [],
   importPlaylist: async () => ({ playlists: [], tracks: [] }),
   exportPlaylist: async () => true,
+  publishState: vi.fn(),
+  currentState: async () => ({
+    title: '', artist: '', album: '', artwork: '',
+    isPlaying: false, canPlay: false, position: 0, duration: 0,
+  }),
+  onPlayerState: noop,
+  sendCommand: vi.fn(),
+  onCommand: noop,
+  toggleMini: async () => false,
+  closeMini: vi.fn(),
+  showMain: vi.fn(),
 
   onUpdateReady: noop,
   installUpdate: vi.fn(),
 } satisfies TaktApi;
 
 (window as Window & { takt?: TaktApi }).takt = stub;
+

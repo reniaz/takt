@@ -6,7 +6,6 @@ import { Icon } from './components/Icon';
 import { PlayerBar } from './components/PlayerBar';
 import { Queue } from './components/Queue';
 import { Resizer } from './components/Resizer';
-import { SearchBar } from './components/SearchBar';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { Sidebar } from './components/Sidebar';
 import { TitleBar } from './components/TitleBar';
@@ -14,6 +13,7 @@ import { TrackList } from './components/TrackList';
 import { useLibrary } from './state/library';
 import { usePlayer } from './state/player';
 import { useMediaSession } from './state/useMediaSession';
+import { usePublishState } from './state/usePublishState';
 import { useShortcuts } from './state/useShortcuts';
 import { useTheme } from './themes/useTheme';
 
@@ -47,6 +47,7 @@ export function App() {
   useTheme();
   useShortcuts();
   useMediaSession();
+  usePublishState();
 
   useEffect(() => {
     void window.takt.getVersion().then(setVersion);
@@ -107,7 +108,6 @@ export function App() {
       }}
     >
       <TitleBar />
-      <SearchBar />
 
       <div className="app__body" style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
         <Sidebar />
