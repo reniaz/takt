@@ -1082,6 +1082,29 @@ input[type='range'] {
   > input[type='range'] { width: 100%; }
 }
 
+.segmented {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--takt-border);
+  border-radius: 6px;
+
+  button {
+    flex: 1;
+    padding: 6px 0;
+    font-size: 12px;
+    color: var(--takt-text-muted);
+    background: var(--takt-raised);
+
+    &:not(:last-child) { border-right: 1px solid var(--takt-border); }
+    &:hover { color: var(--takt-text); background: var(--takt-raised-hover); }
+
+    &.is-on {
+      color: var(--takt-on-accent);
+      background: var(--takt-accent);
+    }
+  }
+}
+
 .preamp {
   display: flex;
   flex-direction: column;

@@ -31,12 +31,33 @@ export function installDevBridge() {
   const host = window as Window & { takt?: TaktApi };
   if (!import.meta.env.DEV || host.takt) return;
 
-  let maximized = false;
-  let library: TrackInfo[] = [];
-  let playlists: PlaylistInfo[] = [];
+  /*
+   * The fake library survives a reload.
+   *
+   * SQLite is what makes ids stable in the real app, and that is what queue restore and
+   * playlists depend on. A dev bridge that forgot everything on reload could not exercise
+   * either, so the same guarantee is faked here.
+   */
+  const KEY = 'takt-dev-library';
+  const stored = (() => {
+    try {
+      return JSON.parse(localStorage.getItem(KEY) ?? 'null') as
+        { library: TrackInfo[]; playlists: PlaylistInfo[] } | null;
+    } catch {
+      return null;
+    }
+  })();
 
+  let maximized = false;
+  let library: TrackInfo[] = stored?.library ?? [];
+  let playlists: PlaylistInfo[] = stored?.playlists ?? [];
+
+  const persist = () => localStorage.setItem(KEY, JSON.stringify({ library, playlists }));
   const noop = () => () => {};
-  const snapshot = async () => playlists.map((p) => ({ ...p, trackIds: [...p.trackIds] }));
+  const snapshot = async () => {
+    persist();
+    return playlists.map((p) => ({ ...p, trackIds: [...p.trackIds] }));
+  };
 
   const find = (id: string) => playlists.find((p) => p.id === id);
 
@@ -51,10 +72,14 @@ export function installDevBridge() {
     onWindowState: noop,
 
     library: async () => library,
-    pickFiles: async () => { library = SAMPLE; return SAMPLE; },
-    pickFolder: async () => { library = SAMPLE; return SAMPLE; },
-    addPaths: async () => { library = SAMPLE; return SAMPLE; },
-    removeTracks: async (ids) => { library = library.filter((t) => !ids.includes(t.id)); return library; },
+    pickFiles: async () => { library = SAMPLE; persist(); return SAMPLE; },
+    pickFolder: async () => { library = SAMPLE; persist(); return SAMPLE; },
+    addPaths: async () => { library = SAMPLE; persist(); return SAMPLE; },
+    removeTracks: async (ids) => {
+      library = library.filter((t) => !ids.includes(t.id));
+      persist();
+      return library;
+    },
     notePlayed: () => {},
     reveal: async () => {},
     pathForFile: () => '',

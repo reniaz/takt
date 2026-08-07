@@ -104,6 +104,9 @@ export type TrackInfo = {
   duration?: number;
   /** Filename under the artwork cache, served as `takt://art/<artwork>`. */
   artwork?: string;
+  /** ReplayGain, in dB, as tagged. Absent means the file carries no gain information. */
+  rgTrack?: number;
+  rgAlbum?: number;
 };
 
 export type PlaylistInfo = {

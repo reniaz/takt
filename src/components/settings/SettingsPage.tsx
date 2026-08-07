@@ -19,6 +19,7 @@ export function SettingsPage({ onClose }: { onClose: () => void }) {
 
       <div className="settings__body">
         <Appearance />
+        <Playback />
         <EqualizerSettings />
         <VersionFooter />
       </div>
@@ -85,6 +86,84 @@ function Appearance() {
       <p className="settings__note">
         Custom themes: drop a JSON file into <code>%APPDATA%\Takt\themes\</code>.
       </p>
+    </section>
+  );
+}
+
+/* ---------- playback ---------- */
+
+function Playback() {
+  const mode = usePlayer((s) => s.replayGain);
+  const preamp = usePlayer((s) => s.replayGainPreamp);
+  const untagged = usePlayer((s) => s.replayGainUntagged);
+  const setMode = usePlayer((s) => s.setReplayGain);
+  const setPreamp = usePlayer((s) => s.setReplayGainPreamp);
+  const setUntagged = usePlayer((s) => s.setReplayGainUntagged);
+
+  return (
+    <section className="settings__section">
+      <h2>Playback</h2>
+      <p className="settings__note">
+        Volume normalization uses the ReplayGain tags already in your files, so a quiet
+        master and a loud one play at the same perceived level without touching the volume
+        control. Nothing is analysed or written — untagged files are left alone apart from
+        the offset below.
+      </p>
+
+      <Row
+        label="Volume normalization"
+        hint="Album mode keeps the relative levels within a record intact, which matters for anything mixed to be heard in order. Track mode levels every song against every other."
+      >
+        <div className="segmented">
+          {(['off', 'track', 'album'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={mode === option ? 'is-on' : ''}
+              onClick={() => setMode(option)}
+              aria-pressed={mode === option}
+            >
+              {option === 'off' ? 'Off' : option === 'track' ? 'Track' : 'Album'}
+            </button>
+          ))}
+        </div>
+      </Row>
+
+      <Row
+        label="Preamp"
+        hint="Applied on top of the tagged gain. ReplayGain targets a fairly quiet reference level, so a few dB here is normal."
+        value={`${preamp > 0 ? '+' : ''}${preamp.toFixed(1)} dB`}
+      >
+        <input
+          type="range"
+          min={-12}
+          max={12}
+          step={0.5}
+          value={preamp}
+          disabled={mode === 'off'}
+          aria-label="ReplayGain preamp"
+          onChange={(e) => setPreamp(Number(e.target.value))}
+          style={{ '--progress': `${((preamp + 12) / 24) * 100}%` } as React.CSSProperties}
+        />
+      </Row>
+
+      <Row
+        label="Untagged files"
+        hint="What to apply to files with no ReplayGain tags. Leaving them at 0 while everything else is pulled down makes them the loudest thing you own."
+        value={`${untagged > 0 ? '+' : ''}${untagged.toFixed(1)} dB`}
+      >
+        <input
+          type="range"
+          min={-12}
+          max={12}
+          step={0.5}
+          value={untagged}
+          disabled={mode === 'off'}
+          aria-label="Gain for untagged files"
+          onChange={(e) => setUntagged(Number(e.target.value))}
+          style={{ '--progress': `${((untagged + 12) / 24) * 100}%` } as React.CSSProperties}
+        />
+      </Row>
     </section>
   );
 }

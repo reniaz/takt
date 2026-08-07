@@ -2,9 +2,11 @@ import { create } from 'zustand';
 
 import { Engine } from '../audio/engine';
 import { autoPreamp, FLAT } from '../audio/eq';
+import { gainFor } from '../audio/replaygain';
 import { load, save } from './persist';
 
 import type { Preset } from '../audio/eq';
+import type { ReplayGainMode } from '../audio/replaygain';
 import type { TrackInfo } from '../../electron/preload';
 
 export type Repeat = 'off' | 'queue' | 'track';
@@ -57,6 +59,10 @@ type State = {
   eqPreampAuto: boolean;
   customPresets: Preset[];
 
+  replayGain: ReplayGainMode;
+  replayGainPreamp: number;
+  replayGainUntagged: number;
+
   themeId: string;
   brightness: number;
 };
@@ -88,6 +94,11 @@ type Actions = {
   setEqPreampAuto: (auto: boolean) => void;
   saveEqPreset: (label: string) => void;
   deleteEqPreset: (id: string) => void;
+  setReplayGain: (mode: ReplayGainMode) => void;
+  setReplayGainPreamp: (db: number) => void;
+  setReplayGainUntagged: (db: number) => void;
+  /** Rebuilds the queue from persisted ids once the library has loaded. */
+  restoreQueue: (tracks: Map<string, TrackInfo>) => void;
   setTheme: (id: string) => void;
   setBrightness: (value: number) => void;
 };
@@ -119,6 +130,10 @@ export const usePlayer = create<State & Actions>((set, get) => ({
   eqPreamp: saved.eqPreamp,
   eqPreampAuto: saved.eqPreampAuto,
   customPresets: saved.customPresets,
+
+  replayGain: saved.replayGain,
+  replayGainPreamp: saved.replayGainPreamp,
+  replayGainUntagged: saved.replayGainUntagged,
 
   themeId: saved.themeId,
   brightness: saved.brightness,
@@ -190,6 +205,11 @@ export const usePlayer = create<State & Actions>((set, get) => ({
     if (!track) return;
 
     set({ index, error: undefined, position: 0, duration: track.duration ?? 0 });
+
+    // Set before loading, so the first audible moment is already at the right level rather
+    // than jumping once the gain catches up.
+    engine.setReplayGain(gainFor(track, get().replayGain, get().replayGainPreamp, get().replayGainUntagged));
+
     engine.load(`takt://media/${track.id}`);
     void engine.play();
     window.takt.notePlayed(track.id);
@@ -368,9 +388,59 @@ export const usePlayer = create<State & Actions>((set, get) => ({
     set({ customPresets: get().customPresets.filter((p) => p.id !== id) });
   },
 
+  setReplayGain: (replayGain) => {
+    set({ replayGain });
+    applyReplayGain(get());
+  },
+
+  setReplayGainPreamp: (db) => {
+    set({ replayGainPreamp: Math.max(-12, Math.min(12, db)) });
+    applyReplayGain(get());
+  },
+
+  setReplayGainUntagged: (db) => {
+    set({ replayGainUntagged: Math.max(-12, Math.min(12, db)) });
+    applyReplayGain(get());
+  },
+
+  restoreQueue: (tracks) => {
+    // Only ever restores into an untouched session. Anything already queued was put there
+    // by the user in this session and outranks what was saved.
+    if (get().queue.length) return;
+
+    const queue = saved.queue.filter((id) => tracks.has(id));
+    if (!queue.length) return;
+
+    const currentId = saved.queue[saved.queueIndex];
+    const index = currentId ? queue.indexOf(currentId) : -1;
+
+    set({ tracks: new Map(tracks), queue, index, position: saved.queuePosition });
+
+    /*
+     * Loaded and seeked, but deliberately not played.
+     *
+     * Launching straight into audio is startling, and the app has no way to know whether
+     * this launch was for listening or for tidying a playlist. Pressing play resumes from
+     * exactly where it left off.
+     */
+    const track = index >= 0 ? tracks.get(queue[index] as string) : undefined;
+    if (!track) return;
+
+    set({ duration: track.duration ?? 0 });
+    engine.setReplayGain(gainFor(track, get().replayGain, get().replayGainPreamp, get().replayGainUntagged));
+    engine.load(`takt://media/${track.id}`);
+    engine.seekWhenReady(saved.queuePosition);
+  },
+
   setTheme: (themeId) => set({ themeId }),
   setBrightness: (brightness) => set({ brightness }),
 }));
+
+function applyReplayGain(state: State) {
+  const id = state.queue[state.index];
+  const track = id ? state.tracks.get(id) : undefined;
+  engine.setReplayGain(gainFor(track, state.replayGain, state.replayGainPreamp, state.replayGainUntagged));
+}
 
 /* Engine -> store. Registered once, at module load. */
 
@@ -408,6 +478,14 @@ usePlayer.subscribe((state) => {
     eqPreamp: state.eqPreamp,
     eqPreampAuto: state.eqPreampAuto,
     customPresets: state.customPresets,
+    replayGain: state.replayGain,
+    replayGainPreamp: state.replayGainPreamp,
+    replayGainUntagged: state.replayGainUntagged,
+    queue: state.queue,
+    queueIndex: state.index,
+    // Rounded: `position` changes several times a second, and storing the exact float
+    // would rewrite the settings on every tick for a precision nobody can hear.
+    queuePosition: Math.floor(state.position),
   });
 });
 

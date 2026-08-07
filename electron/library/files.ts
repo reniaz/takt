@@ -118,7 +118,7 @@ async function parse(path: string): Promise<ParsedTrack> {
   }
 }
 
-export function toTrackInfo(row: Pick<TrackRow, 'id' | 'path' | 'title' | 'artist' | 'album' | 'duration' | 'artwork'>): TrackInfo {
+export function toTrackInfo(row: TrackRow): TrackInfo {
   return {
     id: row.id,
     path: row.path,
@@ -127,6 +127,9 @@ export function toTrackInfo(row: Pick<TrackRow, 'id' | 'path' | 'title' | 'artis
     ...(row.album ? { album: row.album } : undefined),
     ...(row.duration ? { duration: row.duration } : undefined),
     ...(row.artwork ? { artwork: row.artwork } : undefined),
+    // Zero is a real gain, so these are tested for null rather than for truthiness.
+    ...(row.rgTrack !== null ? { rgTrack: row.rgTrack } : undefined),
+    ...(row.rgAlbum !== null ? { rgAlbum: row.rgAlbum } : undefined),
   };
 }
 

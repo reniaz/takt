@@ -2,6 +2,7 @@ import { FLAT } from '../audio/eq';
 import { DEFAULT_THEME_ID } from '../themes/themes';
 
 import type { Preset } from '../audio/eq';
+import type { ReplayGainMode } from '../audio/replaygain';
 import type { Repeat } from './player';
 
 /**
@@ -32,6 +33,21 @@ export type Persisted = {
   eqPreamp: number;
   eqPreampAuto: boolean;
   customPresets: Preset[];
+
+  replayGain: ReplayGainMode;
+  replayGainPreamp: number;
+  replayGainUntagged: number;
+
+  /**
+   * The queue, as track ids, plus where playback had got to.
+   *
+   * Ids and not track objects: the library is the source of truth for metadata, and a
+   * stale copy here would show an old title after a file was retagged. Ids that no longer
+   * resolve are dropped on load.
+   */
+  queue: string[];
+  queueIndex: number;
+  queuePosition: number;
 };
 
 export const DEFAULTS: Persisted = {
@@ -46,6 +62,16 @@ export const DEFAULTS: Persisted = {
   eqPreamp: 0,
   eqPreampAuto: true,
   customPresets: [],
+
+  // Off by default: normalisation is a real change to what comes out of the speakers, and
+  // turning it on should be the user's decision rather than a surprise.
+  replayGain: 'off',
+  replayGainPreamp: 0,
+  replayGainUntagged: 0,
+
+  queue: [],
+  queueIndex: -1,
+  queuePosition: 0,
 };
 
 export function load(): Persisted {

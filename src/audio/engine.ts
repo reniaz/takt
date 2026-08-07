@@ -213,6 +213,22 @@ export class Engine {
     this.emit('time', this.element.currentTime, this.duration);
   }
 
+  /**
+   * Seeks as soon as the element knows how long the track is.
+   *
+   * Setting `currentTime` before metadata has loaded is silently ignored, which is what
+   * happens when restoring a position at startup: the load has been asked for but nothing
+   * has arrived over the protocol yet.
+   */
+  seekWhenReady(seconds: number) {
+    if (this.element.readyState >= 1) {
+      this.seek(seconds);
+      return;
+    }
+
+    this.element.addEventListener('loadedmetadata', () => this.seek(seconds), { once: true });
+  }
+
   /* ---------- levels ---------- */
 
   /** `value` is slider travel, 0–1. The perceptual curve is applied inside. */

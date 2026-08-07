@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { usePlayer } from './player';
+
 import type { PlaylistInfo, TrackInfo } from '../../electron/preload';
 
 /**
@@ -42,7 +44,13 @@ export const useLibrary = create<State & Actions>((set, get) => ({
 
   init: async () => {
     const [tracks, playlists] = await Promise.all([window.takt.library(), window.takt.playlists()]);
-    set({ tracks: new Map(tracks.map((t) => [t.id, t])), playlists, loaded: true });
+    const byId = new Map(tracks.map((t) => [t.id, t]));
+
+    set({ tracks: byId, playlists, loaded: true });
+
+    // Only now: the saved queue is a list of ids, and there is nothing to resolve them
+    // against until the library has arrived.
+    usePlayer.getState().restoreQueue(byId);
   },
 
   merge: (incoming) => {
