@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   albumKey, byDiscAndTrack, creditedArtist, filterTracks, groupAlbums, groupArtists,
-  recentlyPlayed, sortTracks, UNKNOWN_ALBUM, UNKNOWN_ARTIST,
+  recentlyPlayed, searchEverything, sortTracks, UNKNOWN_ALBUM, UNKNOWN_ARTIST,
 } from './browse';
 
 import type { TrackInfo } from '../../electron/preload';
@@ -144,6 +144,54 @@ describe('filterTracks', () => {
 
   it('requires every term', () => {
     expect(filterTracks(tracks, 'neu kraftwerk')).toHaveLength(0);
+  });
+});
+
+describe('searchEverything', () => {
+  const tracks = [
+    t('a', { title: 'Hallogallo', artist: 'Neu!', album: 'Neu!', playCount: 2 }),
+    t('b', { title: 'Negativland', artist: 'Neu!', album: 'Neu!', playCount: 9 }),
+    t('c', { title: 'Autobahn', artist: 'Kraftwerk', album: 'Autobahn' }),
+  ];
+  const lists = [
+    { id: 'p1', name: 'Neu stuff', trackIds: ['a'] },
+    { id: 'p2', name: 'Evening', trackIds: ['c'] },
+  ];
+
+  it('returns nothing for an empty query rather than everything', () => {
+    const found = searchEverything(tracks, lists, '   ');
+    expect(found.total).toBe(0);
+  });
+
+  it('finds tracks, albums, artists and playlists at once', () => {
+    const found = searchEverything(tracks, lists, 'neu');
+    expect(found.tracks.map((x) => x.id).sort()).toEqual(['a', 'b']);
+    expect(found.albums.map((x) => x.title)).toEqual(['Neu!']);
+    expect(found.artists.map((x) => x.name)).toEqual(['Neu!']);
+    expect(found.playlists.map((x) => x.name)).toEqual(['Neu stuff']);
+  });
+
+  it('matches an artist by name even when no track title contains it', () => {
+    // The usual case, and the reason artists are matched on their own name rather than
+    // gathered from whichever tracks happened to match.
+    const found = searchEverything(tracks, lists, 'kraftwerk');
+    expect(found.artists.map((x) => x.name)).toEqual(['Kraftwerk']);
+  });
+
+  it('puts the more played track first', () => {
+    const found = searchEverything(tracks, lists, 'neu');
+    expect(found.tracks[0]?.id).toBe('b');
+  });
+
+  it('caps each group', () => {
+    const many = Array.from({ length: 30 }, (_, i) => t(`x${i}`, { title: `Song ${i}`, artist: 'A' }));
+    const found = searchEverything(many, [], 'song', { tracks: 4, albums: 2, artists: 2, playlists: 1 });
+    expect(found.tracks).toHaveLength(4);
+  });
+
+  it('requires every term, across fields', () => {
+    expect(searchEverything(tracks, lists, 'neu autobahn').total).toBe(0);
+    expect(searchEverything(tracks, lists, 'kraftwerk autobahn').tracks.map((x) => x.id)).toEqual(['c']);
   });
 });
 

@@ -614,10 +614,8 @@ body.is-resizing {
  */
 .search {
   display: flex;
-  flex: none;
   gap: 7px;
   align-items: center;
-  margin-bottom: 4px;
   padding: 5px 6px 5px 10px;
   color: var(--takt-text-faint);
   background: var(--takt-raised);
@@ -655,6 +653,145 @@ body.is-resizing {
   color: var(--takt-text-faint);
   border-radius: 50%;
 
+  &:hover { color: var(--takt-text); background: var(--takt-surface-hover); }
+}
+
+/* ---------- search results ---------- */
+
+.searchbox {
+  position: relative;
+  z-index: 40;
+  flex: none;
+}
+
+/*
+ * Exactly the width of the box it hangs from.
+ *
+ * Overhanging the sidebar was tried and cannot work: the sidebar scrolls vertically, and
+ * CSS forces `overflow-x: visible` to `auto` when the other axis is not visible — so the
+ * panel was silently clipped and got narrower as the sidebar did. Fitting the width and
+ * letting the labels ellipsise means the whole panel is always readable, whatever the
+ * sidebar has been dragged to.
+ */
+.results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--takt-surface);
+  border: 1px solid var(--takt-border-strong);
+  border-radius: 10px;
+  box-shadow: 0 14px 38px var(--takt-shadow);
+}
+
+.results__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--takt-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+
+  button {
+    font: inherit;
+    color: var(--takt-text-muted);
+    text-transform: none;
+    letter-spacing: 0;
+
+    &:hover { color: var(--takt-accent); }
+  }
+}
+
+.results__empty {
+  margin: 0;
+  padding: 4px 12px 12px;
+  font-size: 12px;
+  color: var(--takt-text-faint);
+}
+
+.results__list { padding: 0 5px 5px; }
+
+.result {
+  display: grid;
+  // `minmax(0, 1fr)` is what lets the text column shrink below its content and ellipsise;
+  // `auto` alone would refuse to and push the row wider than the panel.
+  grid-template-columns: 30px minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+
+  /*
+   * Highlight follows the keyboard and the pointer alike, so there is never a second
+   * "hovered" row disagreeing with the one Enter would take.
+   */
+  &--on { background: var(--takt-raised); }
+}
+
+.result__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 30px;
+  height: 30px;
+  color: var(--takt-text-faint);
+  background: var(--takt-raised-hover);
+  border-radius: 4px;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+
+  &--round { border-radius: 50%; }
+}
+
+.result__play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 110ms;
+
+  .result--on & { opacity: 1; }
+}
+
+.result__text { min-width: 0; }
+
+.result__label,
+.result__sub {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result__label { font-size: 13px; }
+.result__sub { font-size: 11px; color: var(--takt-text-muted); }
+
+.result__meta {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--takt-text-faint);
+}
+
+.result__remove {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--takt-text-faint);
+  border-radius: 50%;
+  opacity: 0;
+
+  .result--on & { opacity: 1; }
   &:hover { color: var(--takt-text); background: var(--takt-surface-hover); }
 }
 
@@ -1757,7 +1894,7 @@ body.is-mini {
 .mini {
   position: relative;
   display: grid;
-  grid-template-columns: 62px minmax(0, 1fr) auto;
+  grid-template-columns: 62px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
   height: 100vh;
@@ -1789,7 +1926,7 @@ body.is-mini {
   white-space: nowrap;
 }
 
-.mini__title { font-size: 13px; font-weight: 500; }
+.mini__title { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; }
 .mini__artist { margin-bottom: 3px; font-size: 11px; color: var(--takt-text-muted); }
 
 .mini__transport {
@@ -1809,14 +1946,19 @@ body.is-mini {
   color: var(--takt-text-faint);
 }
 
-.mini__actions {
+/* Title and close share a line, so the close button aligns to something. */
+.mini__top {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-self: start;
-  -webkit-app-region: no-drag;
+  gap: 6px;
+  align-items: center;
+}
 
-  .ctl { width: 24px; height: 24px; border-radius: 5px; }
+.mini__close {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  -webkit-app-region: no-drag;
 }
 
 /* A hairline along the bottom edge: readable at a glance, and costs no height. */

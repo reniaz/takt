@@ -43,8 +43,25 @@ export function MiniPlayer() {
       </div>
 
       <div className="mini__body">
-        <div className="mini__title" title={track.title}>{track.title}</div>
-        <div className="mini__artist">{track.artist || ' '}</div>
+        {/*
+          Close sits on the title's line rather than in a column of its own. Given its own
+          column it aligned to the top of the window instead of to anything inside it,
+          which read as a control someone had forgotten to place.
+        */}
+        <div className="mini__top">
+          <div className="mini__title" title={track.title}>{track.title}</div>
+          <button
+            type="button"
+            className="ctl mini__close"
+            onClick={() => window.takt.closeMini()}
+            title="Close"
+            aria-label="Close mini player"
+          >
+            <Icon name="close" size={14} />
+          </button>
+        </div>
+
+        <div className="mini__artist">{track.artist || ' '}</div>
 
         <div className="mini__transport">
           <button
@@ -79,17 +96,6 @@ export function MiniPlayer() {
             {formatTime(track.position)} / {formatTime(track.duration)}
           </span>
         </div>
-      </div>
-
-      {/*
-        Close only. Getting back to the main window is a double-click on the artwork, or
-        the tray menu — a second button for it crowded a window this size for a route that
-        already existed twice over.
-      */}
-      <div className="mini__actions">
-        <button type="button" className="ctl" onClick={() => window.takt.closeMini()} title="Close" aria-label="Close mini player">
-          <Icon name="close" size={14} />
-        </button>
       </div>
 
       {/* Progress as a hairline along the bottom edge: readable at a glance, no height. */}
