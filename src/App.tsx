@@ -72,8 +72,20 @@ export function App() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'q') {
         e.preventDefault();
         setQueueOpen((open) => !open);
+        return;
+      }
+
+      // A bare letter belongs to whatever field has focus, if one does.
+      const target = e.target as HTMLElement | null;
+      const typing = target
+        && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+      if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setFullscreen((open) => !open);
       }
     };
+
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);

@@ -93,8 +93,18 @@ export function Visualizer({ active }: { active: boolean }) {
       const accent = style.getPropertyValue('--takt-accent').trim() || '#c05f5a';
       const muted = style.getPropertyValue('--takt-raised-hover').trim() || '#434844';
 
-      const gap = Math.max(1, width / BARS / 6);
-      const barWidth = width / BARS - gap;
+      /*
+       * Mirrored outward from the middle.
+       *
+       * Bass in the centre and treble running to both edges, rather than a left-to-right
+       * sweep. Music's energy sits at the low end, so a linear layout piles everything
+       * interesting against one edge and leaves the other still; from the centre, the
+       * shape grows and settles symmetrically and the whole width does something.
+       */
+      const centre = width / 2;
+      const slot = width / (BARS * 2);
+      const gap = Math.max(1, slot / 6);
+      const barWidth = Math.max(1, slot - gap);
       const floor = Math.max(2, height * 0.006);
 
       for (let i = 0; i < BARS; i += 1) {
@@ -123,12 +133,13 @@ export function Visualizer({ active }: { active: boolean }) {
         heights[i] = tilted > previous ? tilted : previous * 0.86 + tilted * 0.14;
 
         const barHeight = Math.max(floor, (heights[i] as number) * height * 0.8);
-        const x = i * (barWidth + gap) + gap / 2;
+        // Also mirrored vertically, so a bar reads as a waveform rather than as a column
+        // growing off the floor.
+        const y = (height - barHeight) / 2;
 
         context.fillStyle = (heights[i] as number) > 0.02 ? accent : muted;
-        // Mirrored around the middle, so the shape reads as a waveform rather than as a
-        // bar chart growing off the floor.
-        context.fillRect(x, (height - barHeight) / 2, barWidth, barHeight);
+        context.fillRect(centre + i * slot + gap / 2, y, barWidth, barHeight);
+        context.fillRect(centre - (i + 1) * slot + gap / 2, y, barWidth, barHeight);
       }
     };
 

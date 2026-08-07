@@ -24,6 +24,10 @@ export function NowPlayingScreen({ onClose }: { onClose: () => void }) {
   const toggle = usePlayer((s) => s.toggle);
   const next = usePlayer((s) => s.next);
   const previous = usePlayer((s) => s.previous);
+  const shuffle = usePlayer((s) => s.shuffle);
+  const repeat = usePlayer((s) => s.repeat);
+  const toggleShuffle = usePlayer((s) => s.toggleShuffle);
+  const cycleRepeat = usePlayer((s) => s.cycleRepeat);
 
   /*
    * The callback is held in a ref rather than depended on.
@@ -78,6 +82,18 @@ export function NowPlayingScreen({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="viz__controls">
+          {/* The same set as the player bar, which is hidden behind this. */}
+          <button
+            type="button"
+            className={`ctl ${shuffle ? 'ctl--on' : ''}`}
+            onClick={toggleShuffle}
+            aria-pressed={shuffle}
+            aria-label="Shuffle"
+            title="Shuffle (S)"
+          >
+            <Icon name="shuffle" size={20} />
+          </button>
+
           <button type="button" className="ctl" onClick={previous} aria-label="Previous">
             <Icon name="previous" size={22} />
           </button>
@@ -86,6 +102,17 @@ export function NowPlayingScreen({ onClose }: { onClose: () => void }) {
           </button>
           <button type="button" className="ctl" onClick={() => next(true)} aria-label="Next">
             <Icon name="next" size={22} />
+          </button>
+
+          <button
+            type="button"
+            className={`ctl ${repeat !== 'off' ? 'ctl--on' : ''}`}
+            onClick={cycleRepeat}
+            aria-label={`Repeat: ${repeat}`}
+            title={`Repeat: ${repeat} (R)`}
+          >
+            <Icon name="repeat" size={20} />
+            {repeat === 'track' && <span className="ctl__badge">1</span>}
           </button>
 
           {track && (

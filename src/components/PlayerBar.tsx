@@ -160,7 +160,7 @@ export function PlayerBar({
           className="ctl"
           onClick={onOpenFullscreen}
           disabled={!hasQueue}
-          title="Fullscreen visualizer"
+          title="Fullscreen visualizer (F)"
           aria-label="Fullscreen visualizer"
         >
           <Icon name="expand" size={17} />
